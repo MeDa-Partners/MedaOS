@@ -88,7 +88,7 @@ export function createApp(): Express {
     });
   });
 
-  app.get("/api/test", async (req, res) => {
+  app.get("/api/test", async (_req: Request, res: Response) => {
     const start = Date.now();
 
     res.json({
