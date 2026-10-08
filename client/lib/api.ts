@@ -131,8 +131,10 @@ export class ApiError extends Error {
 }
 
 // Direct backend API endpoint URL (configured via NEXT_PUBLIC_API_URL in .env / .env.local)
+// Automatically ensures the /api/v1 route prefix is present even if omitted in deployment settings
 const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-const BASE_URL = (rawApiUrl || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+const cleanedUrl = (rawApiUrl || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+const BASE_URL = cleanedUrl.endsWith('/api/v1') ? cleanedUrl : `${cleanedUrl}/api/v1`;
 
 let activeVentureHeader: string | null = null;
 

@@ -5,6 +5,7 @@ import { sessions, users } from '../db/schema';
 import { hashSessionToken } from '../utils/crypto';
 import { env } from '../config/env';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
+import { getSessionCookieOptions } from '../utils/cookie';
 
 /**
  * Middleware that authenticates an incoming request via server-side session cookie.
@@ -44,7 +45,7 @@ export async function authenticate(
 
     if (sessionRecords.length === 0) {
       // Clear invalid cookie
-      res.clearCookie(env.SESSION_COOKIE_NAME, { path: '/' });
+      res.clearCookie(env.SESSION_COOKIE_NAME, getSessionCookieOptions(req));
       throw new UnauthorizedError('Invalid or expired session');
     }
 
@@ -54,7 +55,7 @@ export async function authenticate(
     if (new Date() > record.expiresAt) {
       // Invalidate expired session
       await db.delete(sessions).where(eq(sessions.id, record.sessionId));
-      res.clearCookie(env.SESSION_COOKIE_NAME, { path: '/' });
+      res.clearCookie(env.SESSION_COOKIE_NAME, getSessionCookieOptions(req));
       throw new UnauthorizedError('Session has expired. Please log in again.');
     }
 
@@ -62,7 +63,7 @@ export async function authenticate(
     if (record.userStatus !== 'active') {
       // Deactivate session for inactive user
       await db.delete(sessions).where(eq(sessions.id, record.sessionId));
-      res.clearCookie(env.SESSION_COOKIE_NAME, { path: '/' });
+      res.clearCookie(env.SESSION_COOKIE_NAME, getSessionCookieOptions(req));
       throw new ForbiddenError('Your account has been deactivated. Contact an administrator.');
     }
 

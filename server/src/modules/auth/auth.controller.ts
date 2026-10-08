@@ -3,6 +3,7 @@ import { authService } from './auth.service';
 import { loginSchema, changePasswordSchema } from './auth.validation';
 import { sendSuccess } from '../../utils/response';
 import { env } from '../../config/env';
+import { getSessionCookieOptions } from '../../utils/cookie';
 
 export class AuthController {
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -11,14 +12,9 @@ export class AuthController {
       const result = await authService.login(validatedInput);
 
       // Set secure HttpOnly session cookie
-      res.cookie(env.SESSION_COOKIE_NAME, result.rawToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        expires: result.expiresAt,
-        maxAge: env.SESSION_TTL_HOURS * 3600 * 1000,
-      });
+      const cookieOptions = getSessionCookieOptions(req, env.SESSION_TTL_HOURS * 3600 * 1000);
+      cookieOptions.expires = result.expiresAt;
+      res.cookie(env.SESSION_COOKIE_NAME, result.rawToken, cookieOptions);
 
       sendSuccess(res, result.authData, 200, 'Login successful');
     } catch (error) {
@@ -33,12 +29,7 @@ export class AuthController {
       }
 
       // Clear session cookie
-      res.clearCookie(env.SESSION_COOKIE_NAME, {
-        httpOnly: true,
-        secure: env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-      });
+      res.clearCookie(env.SESSION_COOKIE_NAME, getSessionCookieOptions(req));
 
       sendSuccess(res, null, 200, 'Logged out successfully');
     } catch (error) {

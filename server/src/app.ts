@@ -18,11 +18,19 @@ import { sectionsRoutes } from './modules/sections/sections.routes';
 export function createApp(): Express {
   const app: Express = express();
 
-  // 1. Security Headers
-  app.use(helmet());
+  // 1. Trust Reverse Proxy (Render load balancer, Vercel edge, Cloudflare)
+  // Required so req.secure, client IP, and secure cookies work properly behind HTTPS proxies.
+  app.set('trust proxy', 1);
 
-  // 2. CORS configuration for frontend credentials & session cookies
-  const configuredOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
+  // 2. Security Headers (allow cross-origin API calls)
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
+
+  // 3. CORS configuration for frontend credentials & session cookies
+  const configuredOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim().replace(/\/+$/, ''));
   const allowedOrigins = Array.from(
     new Set([
       ...configuredOrigins,
@@ -31,30 +39,47 @@ export function createApp(): Express {
     ])
   );
 
+  const isOriginAllowed = (origin: string): boolean => {
+    const cleanOrigin = origin.replace(/\/+$/, '');
+    if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes('*')) {
+      return true;
+    }
+    // Allow any Vercel deployment (e.g. meda-os.vercel.app or branch preview URLs)
+    if (/^https:\/\/[a-zA-Z0-9_.-]+\.vercel\.app$/.test(cleanOrigin)) {
+      return true;
+    }
+    // Allow Render deployment domain
+    if (/^https:\/\/[a-zA-Z0-9_.-]+\.onrender\.com$/.test(cleanOrigin)) {
+      return true;
+    }
+    return false;
+  };
+
   app.use(
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        if (isOriginAllowed(origin)) {
           return callback(null, true);
         }
         callback(null, false);
       },
       credentials: true,
+      optionsSuccessStatus: 200,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Venture-Id'],
     })
   );
 
-  // 3. Body Parsing & Cookie Parsing
+  // 4. Body Parsing & Cookie Parsing
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
 
-  // 4. Global standard rate limiter
+  // 5. Global standard rate limiter
   app.use(standardRateLimiter);
 
-  // 5. Health Check
+  // 6. Health Check
   app.get('/health', (_req: Request, res: Response) => {
     sendSuccess(res, {
       status: 'healthy',
@@ -63,23 +88,32 @@ export function createApp(): Express {
     });
   });
 
-  // 6. API v1 Mounts
-  const apiV1 = express.Router();
-  apiV1.use('/auth', authRoutes);
-  apiV1.use('/users', usersRoutes);
-  apiV1.use('/employees', usersRoutes);
-  apiV1.use('/teams', teamsRoutes);
-  apiV1.use('/ventures', venturesRoutes);
-  apiV1.use('/sections', sectionsRoutes);
+  // 7. API Routes Mount (both /api/v1 and root fallback for deployment resilience)
+  const apiRouter = express.Router();
+  apiRouter.use('/auth', authRoutes);
+  apiRouter.use('/users', usersRoutes);
+  apiRouter.use('/employees', usersRoutes);
+  apiRouter.use('/teams', teamsRoutes);
+  apiRouter.use('/ventures', venturesRoutes);
+  apiRouter.use('/sections', sectionsRoutes);
 
-  app.use('/api/v1', apiV1);
+  // Mount at standard /api/v1 prefix
+  app.use('/api/v1', apiRouter);
 
-  // 7. 404 Catch-All Route
+  // Fallback mount at root in case client deployment omits /api/v1
+  app.use('/auth', authRoutes);
+  app.use('/users', usersRoutes);
+  app.use('/employees', usersRoutes);
+  app.use('/teams', teamsRoutes);
+  app.use('/ventures', venturesRoutes);
+  app.use('/sections', sectionsRoutes);
+
+  // 8. 404 Catch-All Route
   app.use((req: Request, _res: Response, next: NextFunction) => {
     next(new NotFoundError(`Route ${req.method} ${req.originalUrl} not found`));
   });
 
-  // 8. Centralized Error Handler
+  // 9. Centralized Error Handler
   app.use(errorHandler);
 
   return app;
