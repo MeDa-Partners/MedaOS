@@ -88,6 +88,15 @@ export function createApp(): Express {
     });
   });
 
+  app.get("/api/test", async (req, res) => {
+    const start = Date.now();
+
+    res.json({
+      message: "Backend is working",
+      time: `${Date.now() - start}ms`,
+    });
+  });
+
   // 7. API Routes Mount (both /api/v1 and root fallback for deployment resilience)
   const apiRouter = express.Router();
   apiRouter.use('/auth', authRoutes);
