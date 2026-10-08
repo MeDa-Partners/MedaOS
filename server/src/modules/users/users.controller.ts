@@ -27,11 +27,21 @@ export class UsersController {
       const ventureId = req.query.ventureId as string | undefined;
       const teamId = req.query.teamId as string | undefined;
 
+      const dbStart = Date.now();
+      // your Supabase query
       const result = await usersService.listUsers(
         { page, limit, search, ventureId, teamId },
         this.getRequester(req)
       );
+      console.log("3. Supabase:", Date.now() - dbStart, "ms");
+
+      const logicStart = Date.now();
+      // your remaining processing
       sendSuccess(res, result);
+      console.log("4. Logic:", Date.now() - logicStart, "ms");
+
+      const start = (req as any)._apiStart || dbStart;
+      console.log("TOTAL:", Date.now() - start, "ms");
     } catch (error) {
       next(error);
     }

@@ -322,15 +322,21 @@ export class UsersService {
         .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
     }
 
+    const queryStart = Date.now();
     const [totalResult, userRows] = await Promise.all([
       countQuery,
       targetUserIdsQuery.limit(limit).offset(offset),
     ]);
+    const queryTime = Date.now() - queryStart;
 
     const total = totalResult[0]?.count || 0;
     const userIds = userRows.map((r) => r.id);
 
+    const hydStart = Date.now();
     const hydratedUsers = await this.hydrateUsers(userIds);
+    const hydTime = Date.now() - hydStart;
+
+    console.log(`   └─ [Supabase Query Details] count & IDs query: ${queryTime}ms | hydration: ${hydTime}ms`);
 
     return {
       users: hydratedUsers,

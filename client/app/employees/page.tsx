@@ -122,6 +122,7 @@ export default function EmployeesPage() {
   }, [isAdmin, userVentures, activeVenture]);
 
   const reloadEmployees = useCallback(() => {
+    console.log('[Employees Page] Refresh button clicked');
     setLoading(true);
     setRefreshCount((c) => c + 1);
   }, []);
@@ -131,6 +132,8 @@ export default function EmployeesPage() {
     let isMounted = true;
 
     async function fetchList() {
+      const clientStart = Date.now();
+      console.log('[Employees Page] API request started');
       try {
         const params: { search?: string; ventureId?: string; teamId?: string } = {};
         if (search.trim()) params.search = search.trim();
@@ -138,11 +141,13 @@ export default function EmployeesPage() {
         if (selectedTeamFilter) params.teamId = selectedTeamFilter;
 
         const data = await api.employees.list(params);
+        console.log('[Employees Page] TOTAL (Frontend roundtrip):', Date.now() - clientStart, 'ms');
         if (isMounted) {
           setEmployees(data.users);
           setError(null);
         }
       } catch (err: unknown) {
+        console.log('[Employees Page] TOTAL (Frontend error):', Date.now() - clientStart, 'ms');
         if (isMounted) {
           setError(err instanceof ApiError ? err.message : 'Failed to fetch employees');
         }

@@ -5,11 +5,30 @@ import { requireEmployeeManagement } from '../../middleware/require-employee-man
 
 const router = Router();
 
+// 1. Employee list (GET /) with profiling logs for performance monitoring
+router.get(
+  '/',
+  (req, _res, next) => {
+    const start = Date.now();
+    (req as any)._apiStart = start;
+    console.log('1. API started');
+
+    (req as any)._authStart = Date.now();
+    next();
+  },
+  authenticate,
+  requireEmployeeManagement,
+  (req, _res, next) => {
+    const authStart = (req as any)._authStart || Date.now();
+    console.log('2. Auth:', Date.now() - authStart, 'ms');
+    next();
+  },
+  (req, res, next) => usersController.list(req, res, next)
+);
+
 // Employee management endpoints require authentication and Employee Management authorization
 // (Authorized for global administrators and venture team managers with 'employees' section access)
 router.use(authenticate, requireEmployeeManagement);
-
-router.get('/', (req, res, next) => usersController.list(req, res, next));
 router.post('/', (req, res, next) => usersController.create(req, res, next));
 router.get('/:id', (req, res, next) => usersController.getById(req, res, next));
 router.patch('/:id', (req, res, next) => usersController.update(req, res, next));
