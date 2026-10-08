@@ -1,8 +1,8 @@
 /**
  * MeDa Partners Operating System — API Client
  *
- * Communicates with Express backend via Next.js rewrites (/api/backend -> http://localhost:5000/api/v1).
- * Uses credentials: 'include' for secure HTTP-only cookie session authentication.
+ * Communicates directly with the Express backend via the configured NEXT_PUBLIC_API_URL.
+ * Uses credentials: 'include' for secure HTTP-only cookie session authentication and CORS.
  * No JWTs, no localStorage, no direct database connections.
  */
 
@@ -130,8 +130,9 @@ export class ApiError extends Error {
   }
 }
 
-// Proxied base URL through Next.js rewrites
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/backend';
+// Direct backend API endpoint URL (configured via NEXT_PUBLIC_API_URL in .env / .env.local)
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const BASE_URL = (rawApiUrl || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
 
 let activeVentureHeader: string | null = null;
 
@@ -143,7 +144,8 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${BASE_URL}${cleanEndpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
