@@ -1,4 +1,4 @@
-import { eq, inArray, sql, and, or, ilike } from 'drizzle-orm';
+import { eq, inArray, sql, and, or, ilike, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   users,
@@ -290,7 +290,7 @@ export class UsersService {
       const scopeClause = sql.join(allowedScopeConditions, sql` OR `);
 
       targetUserIdsQuery = db
-        .selectDistinct({ id: users.id })
+        .selectDistinct({ id: users.id, createdAt: users.createdAt })
         .from(users)
         .innerJoin(userVentures, eq(users.id, userVentures.userId))
         .where(
@@ -298,7 +298,8 @@ export class UsersService {
             scopeClause,
             whereConditions.length > 0 ? and(...whereConditions) : undefined
           )
-        );
+        )
+        .orderBy(asc(users.createdAt), asc(users.id));
 
       countQuery = db
         .select({ count: sql<number>`count(distinct ${users.id})::int` })
@@ -312,9 +313,10 @@ export class UsersService {
         );
     } else {
       targetUserIdsQuery = db
-        .select({ id: users.id })
+        .select({ id: users.id, createdAt: users.createdAt })
         .from(users)
-        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+        .orderBy(asc(users.createdAt), asc(users.id));
 
       countQuery = db
         .select({ count: sql<number>`count(*)::int` })
