@@ -42,9 +42,6 @@ import {
   FolderTree,
   Layers,
   Crown,
-  Search,
-  X,
-  Bell,
 } from 'lucide-react';
 import { ChangePasswordModal } from '../modals/change-password-modal';
 
@@ -59,6 +56,10 @@ interface DepartmentSectionGroup {
   departmentSlug?: string;
   sections: Section[];
 }
+
+// Module-level persistent cache across route changes/page remounts
+let savedSidebarScrollTop = 0;
+let savedOpenDepartments: Record<string, boolean> = {};
 
 export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
@@ -79,24 +80,61 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
 
   const [ventureMenuOpen, setVentureMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
-  const [findQuery, setFindQuery] = useState('');
-  const findInputRef = useRef<HTMLInputElement>(null);
+  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>(
+    () => savedOpenDepartments
+  );
 
-  // Keyboard shortcut: Press 'f' or '/' to focus quick find
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Restore scroll position after mount and across route changes
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        (e.key === 'f' || e.key === 'F') &&
-        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
-      ) {
-        e.preventDefault();
-        findInputRef.current?.focus();
+    const restoreScroll = () => {
+      const el = contentRef.current;
+      const targetScroll =
+        savedSidebarScrollTop ||
+        (typeof window !== 'undefined'
+          ? Number(sessionStorage.getItem('meda_sidebar_scroll')) || 0
+          : 0);
+
+      if (el && targetScroll > 0) {
+        el.scrollTop = targetScroll;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+
+    restoreScroll();
+    const rafId = requestAnimationFrame(restoreScroll);
+    const timerId = setTimeout(restoreScroll, 60);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timerId);
+    };
+  }, [pathname, activeSections]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    savedSidebarScrollTop = top;
+    try {
+      sessionStorage.setItem('meda_sidebar_scroll', String(top));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleLinkClick = () => {
+    if (contentRef.current) {
+      const top = contentRef.current.scrollTop;
+      savedSidebarScrollTop = top;
+      try {
+        sessionStorage.setItem('meda_sidebar_scroll', String(top));
+      } catch {
+        // ignore
+      }
+    }
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
 
   // Map route slugs to distinctive, refined icons
   const getSectionIcon = (slug: string) => {
@@ -147,37 +185,20 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     return Array.from(groupsMap.values());
   }, [activeSections, activeDepartment]);
 
-  // Filter groups in real time based on Find input
-  const filteredDepartmentGroups = useMemo(() => {
-    if (!findQuery.trim()) return departmentGroups;
-    const q = findQuery.toLowerCase().trim();
-
-    return departmentGroups
-      .map((g) => {
-        const matchesDept = g.departmentName.toLowerCase().includes(q);
-        const matchingSections = g.sections.filter(
-          (s) => s.name.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q)
-        );
-        if (matchesDept) return g;
-        if (matchingSections.length > 0) {
-          return { ...g, sections: matchingSections };
-        }
-        return null;
-      })
-      .filter((g): g is DepartmentSectionGroup => g !== null);
-  }, [departmentGroups, findQuery]);
-
   // Toggle department collapsible section
   const toggleDepartment = (deptId: string) => {
-    setOpenDepartments((prev) => ({
-      ...prev,
-      [deptId]: prev[deptId] !== undefined ? !prev[deptId] : false,
-    }));
+    setOpenDepartments((prev) => {
+      const next = {
+        ...prev,
+        [deptId]: prev[deptId] !== undefined ? !prev[deptId] : false,
+      };
+      savedOpenDepartments = next;
+      return next;
+    });
   };
 
-  // Check if a department is open (default to true or if filtered)
+  // Check if a department is open (default to true or if contains active route)
   const isDeptOpen = (group: DepartmentSectionGroup) => {
-    if (findQuery.trim()) return true;
     const containsActiveRoute = group.sections.some((s) => pathname.startsWith(s.route));
     if (containsActiveRoute) return true;
     return openDepartments[group.departmentId] ?? true;
@@ -193,14 +214,15 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   return (
     <>
       <SidebarRoot mobileOpen={mobileOpen} onCloseMobile={onCloseMobile}>
-        {/* TOP: BRAND & VENTURE SWITCHER (VERCEL STYLE) */}
+        {/* TOP: BRAND & VENTURE SWITCHER */}
         <SidebarHeader>
           {/* Logo / Brand Header */}
           <div className="flex items-center justify-between px-1 pt-1 pb-2 border-b border-[#f0f0f2]">
             <Link
               href="/"
+              scroll={false}
               className="flex items-center gap-2.5 group"
-              onClick={onCloseMobile}
+              onClick={handleLinkClick}
             >
               <div className="w-7 h-7 rounded-lg bg-[#09090b] text-white flex items-center justify-center font-bold text-xs tracking-tight shadow-xs">
                 M
@@ -219,7 +241,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </Link>
           </div>
 
-          {/* Vercel-style Account / Venture Switcher */}
+          {/* Account / Venture Switcher */}
           <div className="relative pt-1">
             <button
               type="button"
@@ -283,43 +305,17 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               </div>
             )}
           </div>
-
-          {/* Vercel-style "Find" Quick Search Box with [F] badge */}
-          <div className="relative mt-1">
-            <Search className="w-3.5 h-3.5 text-[#a1a1aa] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              ref={findInputRef}
-              type="text"
-              value={findQuery}
-              onChange={(e) => setFindQuery(e.target.value)}
-              placeholder="Find"
-              className="w-full h-8 pl-8 pr-7 text-xs bg-[#fafafa] hover:bg-[#f4f4f5] focus:bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] placeholder:text-[#a1a1aa] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] transition-all"
-            />
-            {findQuery ? (
-              <button
-                type="button"
-                onClick={() => setFindQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#a1a1aa] hover:text-[#09090b] cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            ) : (
-              <kbd className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9px] text-[#a1a1aa] bg-white border border-[#e4e4e7] px-1 py-0.2 rounded shadow-2xs pointer-events-none">
-                F
-              </kbd>
-            )}
-          </div>
         </SidebarHeader>
 
-        {/* MIDDLE: SCROLLABLE NAVIGATION CONTENT */}
-        <SidebarContent>
+        {/* MIDDLE: SCROLLABLE NAVIGATION CONTENT (Scroll Position Preserved) */}
+        <SidebarContent ref={contentRef} onScroll={handleScroll}>
           {/* GROUP: PLATFORM OVERVIEW */}
           <SidebarGroup>
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <Link href="/" onClick={onCloseMobile}>
+                  <Link href="/" scroll={false} onClick={handleLinkClick}>
                     <SidebarMenuButton isActive={pathname === '/'}>
                       <LayoutDashboard className="w-4 h-4 shrink-0" />
                       <span>Overview</span>
@@ -345,13 +341,13 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </SidebarGroupLabel>
 
             <SidebarGroupContent>
-              {filteredDepartmentGroups.length === 0 ? (
+              {departmentGroups.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-[#71717a] bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-center">
-                  <span>{findQuery ? 'No matching sections found.' : 'No sections enabled in this venture.'}</span>
+                  <span>No sections enabled in this venture.</span>
                 </div>
               ) : (
                 <SidebarMenu>
-                  {filteredDepartmentGroups.map((group) => {
+                  {departmentGroups.map((group) => {
                     const open = isDeptOpen(group);
                     const containsActive = group.sections.some((s) =>
                       pathname.startsWith(s.route)
@@ -394,7 +390,8 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                                 <SidebarMenuSubItem key={section.id}>
                                   <Link
                                     href={section.route}
-                                    onClick={onCloseMobile}
+                                    scroll={false}
+                                    onClick={handleLinkClick}
                                     className="block"
                                   >
                                     <SidebarMenuSubButton isActive={isActive}>
@@ -429,7 +426,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {/* Employees */}
                   {hasEmployeeManagementAccess && (
                     <SidebarMenuItem>
-                      <Link href="/employees" onClick={onCloseMobile}>
+                      <Link href="/employees" scroll={false} onClick={handleLinkClick}>
                         <SidebarMenuButton isActive={pathname.startsWith('/employees')}>
                           <Users2 className="w-4 h-4 shrink-0" />
                           <span>Employees</span>
@@ -441,7 +438,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {/* Departments */}
                   {(isAdmin || isDepartmentHead) && (
                     <SidebarMenuItem>
-                      <Link href="/departments" onClick={onCloseMobile}>
+                      <Link href="/departments" scroll={false} onClick={handleLinkClick}>
                         <SidebarMenuButton isActive={pathname.startsWith('/departments')}>
                           <FolderTree className="w-4 h-4 shrink-0" />
                           <span>Departments</span>
@@ -453,7 +450,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {/* Teams */}
                   {(isAdmin || isDepartmentHead || isTeamHead) && (
                     <SidebarMenuItem>
-                      <Link href="/teams" onClick={onCloseMobile}>
+                      <Link href="/teams" scroll={false} onClick={handleLinkClick}>
                         <SidebarMenuButton isActive={pathname.startsWith('/teams')}>
                           <Network className="w-4 h-4 shrink-0" />
                           <span>Teams</span>
@@ -465,7 +462,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {/* Sections */}
                   {(isAdmin || isDepartmentHead) && (
                     <SidebarMenuItem>
-                      <Link href="/sections" onClick={onCloseMobile}>
+                      <Link href="/sections" scroll={false} onClick={handleLinkClick}>
                         <SidebarMenuButton isActive={pathname.startsWith('/sections')}>
                           <Layers className="w-4 h-4 shrink-0" />
                           <span>Sections</span>
@@ -477,7 +474,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {/* Ventures (Admin Only) */}
                   {isAdmin && (
                     <SidebarMenuItem>
-                      <Link href="/ventures" onClick={onCloseMobile}>
+                      <Link href="/ventures" scroll={false} onClick={handleLinkClick}>
                         <SidebarMenuButton isActive={pathname.startsWith('/ventures')}>
                           <Building2 className="w-4 h-4 shrink-0" />
                           <span>Ventures</span>
@@ -491,9 +488,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           )}
         </SidebarContent>
 
-        {/* BOTTOM: USER PROFILE & SESSION FOOTER (VERCEL STYLE) */}
+        {/* BOTTOM: USER PROFILE & SESSION FOOTER */}
         <SidebarFooter>
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center px-1">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-full bg-[#18181b] text-white text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">
                 {user?.name ? user.name.slice(0, 2).toUpperCase() : <UserIcon className="w-3.5 h-3.5" />}
@@ -518,12 +515,6 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   {user?.email}
                 </span>
               </div>
-            </div>
-
-            {/* Notification bell icon (matching Vercel's bottom status bell) */}
-            <div className="relative p-1.5 text-[#71717a] hover:text-[#09090b] hover:bg-white rounded-md transition-colors">
-              <Bell className="w-3.5 h-3.5" />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute top-1 right-1" />
             </div>
           </div>
 
