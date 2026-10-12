@@ -1,26 +1,40 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/context/auth-context';
 import { api, Department, Venture, EmployeeResponseItem, ApiError } from '@/lib/api';
 import {
-  Building2,
   FolderTree,
-  Search,
   AlertCircle,
   CheckCircle2,
   X,
   Loader2,
   RefreshCw,
-  Layers,
-  Network,
+  Building2,
   Crown,
   Terminal,
   ExternalLink,
+  Network,
   Users2,
+  Layers,
 } from 'lucide-react';
-import Link from 'next/link';
+import { PageHeader } from '@/components/ui/page-header';
+import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetBody,
+  SheetFooter,
+} from '@/components/ui/sheet';
 
 export default function DepartmentsPage() {
   const { user, isAdmin, refreshUser } = useAuth();
@@ -38,7 +52,7 @@ export default function DepartmentsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Department Head Modal (Operational leadership appointment allowed for Global Admin)
+  // Department Head Sheet State
   const [assignHeadDept, setAssignHeadDept] = useState<Department | null>(null);
   const [selectedHeadUserId, setSelectedHeadUserId] = useState<string>('');
 
@@ -121,64 +135,61 @@ export default function DepartmentsPage() {
       d.name.toLowerCase().includes(search.toLowerCase()) ||
       d.slug.toLowerCase().includes(search.toLowerCase()) ||
       d.ventureName.toLowerCase().includes(search.toLowerCase()) ||
-      (d.headUser?.name || '').toLowerCase().includes(search.toLowerCase());
+      (d.headUser?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (d.headUserName || '').toLowerCase().includes(search.toLowerCase());
     return matchesSearch;
   });
 
   return (
     <AppShell>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#e4e4e7]">
-          <div>
-            <div className="flex items-center gap-2">
-              <FolderTree className="w-5 h-5 text-[#18181b]" />
-              <h1 className="text-xl font-bold text-[#09090b]">Departments Directory</h1>
-            </div>
-            <p className="text-xs text-[#71717a] mt-1">
-              Organizational divisions within ventures. Global Administrators can appoint and reassign Department Heads.
-            </p>
-          </div>
+        {/* Standard Page Header */}
+        <PageHeader
+          icon={<FolderTree className="w-4 h-4" />}
+          title="Departments Directory"
+          description="Organizational divisions structured across ventures. Global Administrators can appoint and reassign Department Heads."
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={reloadData}
+                disabled={loading}
+                title="Refresh list"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+              <Link href="/teams">
+                <Button size="sm">
+                  <Network className="w-3.5 h-3.5" />
+                  <span>Configure Teams</span>
+                </Button>
+              </Link>
+            </>
+          }
+        />
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={reloadData}
-              disabled={loading}
-              className="p-2 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <Link
-              href="/teams"
-              className="px-3.5 py-2 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
-            >
-              <Network className="w-4 h-4" />
-              <span>Configure Teams</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Dev Admin Responsibility Banner */}
-        <div className="p-4 bg-[#fafafa] border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        {/* Boundary Notice Banner */}
+        <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
               <Terminal className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <span className="font-semibold text-[#09090b] flex items-center gap-1.5">
-                Department Structure & Catalog Boundary
+                Catalog Architecture Boundary
               </span>
               <p className="text-[#71717a] mt-0.5">
-                Creating, modifying metadata, or deleting departments belongs exclusively to <span className="font-medium text-[#09090b]">Dev Admin</span>. Operational Department Head assignments and team configurations are managed here.
+                Creating, modifying metadata, or deleting departments belongs exclusively to{' '}
+                <strong className="text-[#09090b] font-medium">Dev Admin</strong>. Operational leadership assignments and team configurations are managed here.
               </p>
             </div>
           </div>
 
           <Link
             href="/dev"
-            className="px-3 py-1.5 bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1.5"
           >
             <span>Open Dev Admin (/dev)</span>
             <ExternalLink className="w-3 h-3 text-[#71717a]" />
@@ -187,265 +198,281 @@ export default function DepartmentsPage() {
 
         {/* Notifications */}
         {error && (
-          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-start gap-2.5">
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div className="flex-1 font-medium">{error}</div>
-            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
         {successMessage && (
-          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg flex items-center gap-2.5">
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <div className="flex-1 font-medium">{successMessage}</div>
-            <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700">
+            <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-[#e4e4e7] shadow-xs">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#a1a1aa]" />
-            <input
-              type="text"
-              placeholder="Search departments, venture, head..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#09090b]"
-            />
-          </div>
+        {/* Unified Filter Bar */}
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search departments, venture, head..."
+          count={filteredDepartments.length}
+          totalCount={departments.length}
+          hasActiveFilters={Boolean(selectedVentureFilter || search)}
+          onClearFilters={() => {
+            setSearch('');
+            setSelectedVentureFilter('');
+          }}
+        >
+          <FilterSelect
+            icon={<Building2 className="w-3.5 h-3.5" />}
+            value={selectedVentureFilter}
+            onChange={(e) => setSelectedVentureFilter(e.target.value)}
+          >
+            <option value="">All Ventures</option>
+            {ventures.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterBar>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedVentureFilter}
-              onChange={(e) => setSelectedVentureFilter(e.target.value)}
-              className="px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b]"
-            >
-              <option value="">All Ventures</option>
-              {ventures.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Department Grid / List */}
+        {/* Department Grid */}
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-[#71717a]">
+          <div className="py-24 flex flex-col items-center justify-center text-[#71717a]">
             <Loader2 className="w-6 h-6 animate-spin mb-2" />
-            <span className="text-xs">Loading departments...</span>
+            <span className="text-xs font-mono">Loading departments catalog...</span>
           </div>
         ) : filteredDepartments.length === 0 ? (
-          <div className="py-16 text-center bg-white border border-[#e4e4e7] rounded-xl p-8 shadow-xs">
-            <FolderTree className="w-10 h-10 text-[#a1a1aa] mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-[#09090b]">No departments found</h3>
-            <p className="text-xs text-[#71717a] mt-1 max-w-sm mx-auto">
-              Departments are registered through Dev Admin at <span className="font-mono">/dev</span>.
-            </p>
-          </div>
+          <EmptyState
+            icon={FolderTree}
+            title="No departments found"
+            description={
+              search || selectedVentureFilter
+                ? 'No departments match your active search or venture filter.'
+                : 'Departments are registered through Dev Admin at /dev.'
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDepartments.map((dept) => {
+              const headName = dept.headUser?.name || dept.headUserName;
+              const headEmail = dept.headUser?.email || dept.headUserEmail;
+
               return (
-                <div
-                  key={dept.id}
-                  className="bg-white border border-[#e4e4e7] rounded-xl p-5 shadow-2xs hover:border-[#d4d4d8] transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold text-[#09090b]">{dept.name}</h3>
-                        <span className="text-[11px] font-mono text-[#71717a]">slug: {dept.slug}</span>
+                <Card key={dept.id} hoverable className="flex flex-col justify-between">
+                  <div>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <CardTitle>{dept.name}</CardTitle>
+                          <span className="text-[11px] font-mono text-[#71717a] block">
+                            slug: {dept.slug}
+                          </span>
+                        </div>
+                        <Badge
+                          variant={dept.status === 'active' ? 'success' : 'secondary'}
+                          dot={dept.status === 'active'}
+                        >
+                          {dept.status}
+                        </Badge>
                       </div>
-                      <span
-                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          dept.status === 'active'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
-                        }`}
-                      >
-                        {dept.status}
-                      </span>
-                    </div>
+                    </CardHeader>
 
-                    <div className="space-y-1.5 text-xs text-[#52525b] pt-1 border-t border-[#f0f0f2]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#a1a1aa] flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5" /> Venture:
+                    <CardContent className="space-y-3">
+                      {/* Venture */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#a1a1aa]" /> Venture
                         </span>
-                        <span className="font-medium text-[#18181b]">{dept.ventureName}</span>
+                        <span className="font-medium text-[#09090b]">{dept.ventureName}</span>
                       </div>
 
-                      {(() => {
-                        const head =
-                          dept.headUser ||
-                          (dept.headUserId && dept.headUserName
-                            ? {
-                                id: dept.headUserId,
-                                name: dept.headUserName,
-                                email: dept.headUserEmail || '',
-                              }
-                            : null);
+                      {/* Head */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <Crown className="w-3.5 h-3.5 text-amber-500" /> Department Head
+                        </span>
+                        <span className="font-medium text-[#09090b]">
+                          {headName ? (
+                            <span className="flex items-center gap-1 text-[#09090b]">
+                              {headName}
+                            </span>
+                          ) : (
+                            <span className="text-[#a1a1aa] italic font-normal">Unassigned</span>
+                          )}
+                        </span>
+                      </div>
 
-                        return (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#a1a1aa] flex items-center gap-1">
-                              <Crown className="w-3.5 h-3.5 text-amber-500" /> Dept Head:
-                            </span>
-                            <span className="font-medium text-[#18181b]">
-                              {head ? (
-                                <span className="flex items-center gap-1">
-                                  {head.name}
-                                </span>
-                              ) : (
-                                <span className="text-[#a1a1aa] italic">Unassigned</span>
-                              )}
-                            </span>
+                      {/* Count Metrics Box */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#f4f4f5] text-center">
+                        <div className="p-2.5 bg-[#fafafa] rounded-lg border border-[#e4e4e7]">
+                          <div className="text-[10px] text-[#71717a] uppercase font-mono tracking-wider">
+                            Teams
                           </div>
-                        );
-                      })()}
-
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#f0f0f2] text-center">
-                        <div className="p-2 bg-[#fafafa] rounded-lg border border-[#e4e4e7]">
-                          <div className="text-[10px] text-[#a1a1aa] uppercase font-mono">Teams</div>
-                          <div className="text-base font-bold text-[#09090b]">{dept.teamCount}</div>
+                          <div className="text-base font-bold text-[#09090b] mt-0.5">
+                            {dept.teamCount}
+                          </div>
                         </div>
-                        <div className="p-2 bg-[#fafafa] rounded-lg border border-[#e4e4e7]">
-                          <div className="text-[10px] text-[#a1a1aa] uppercase font-mono">Sections</div>
-                          <div className="text-base font-bold text-[#09090b]">{dept.sectionCount}</div>
+                        <div className="p-2.5 bg-[#fafafa] rounded-lg border border-[#e4e4e7]">
+                          <div className="text-[10px] text-[#71717a] uppercase font-mono tracking-wider">
+                            Sections
+                          </div>
+                          <div className="text-base font-bold text-[#09090b] mt-0.5">
+                            {dept.sectionCount}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </CardContent>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-xs">
+                  <CardFooter>
                     <Link
                       href={`/teams?departmentId=${dept.id}`}
-                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
                     >
                       <Network className="w-3 h-3" />
                       <span>View Teams</span>
                     </Link>
 
                     {isAdmin && (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => {
-                          setSelectedHeadUserId(dept.headUserId || '');
+                          setSelectedHeadUserId(dept.headUserId || dept.headUser?.id || '');
                           setAssignHeadDept(dept);
                         }}
-                        className="px-2.5 py-1 text-[11px] bg-[#fafafa] hover:bg-[#f4f4f5] text-[#09090b] border border-[#e4e4e7] rounded-md transition-colors flex items-center gap-1 font-medium"
                       >
-                        <Crown className="w-3 h-3 text-amber-600" />
-                        <span>{dept.headUserId ? 'Reassign Head' : 'Appoint Head'}</span>
-                      </button>
+                        <Crown className="w-3 h-3 text-amber-500" />
+                        <span>{headName ? 'Reassign Head' : 'Appoint Head'}</span>
+                      </Button>
                     )}
-                  </div>
-                </div>
+                  </CardFooter>
+                </Card>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* Assign / Replace Head Modal */}
-      {assignHeadDept && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-sm w-full shadow-xl p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
-              <h3 className="text-sm font-semibold text-[#09090b]">
-                Appoint Department Head
-              </h3>
-              <button
-                onClick={() => setAssignHeadDept(null)}
-                className="text-[#71717a] hover:text-[#09090b]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAssignHeadSubmit} className="space-y-4 pt-4">
-              <p className="text-xs text-[#71717a]">
-                Select an existing user to designate as the Department Head of{' '}
-                <span className="font-semibold text-[#09090b]">{assignHeadDept.name}</span>.
-              </p>
-
-              {/* Current Head Banner */}
-              <div className="p-2.5 bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs flex items-center justify-between">
-                <span className="text-[#71717a]">Current Head:</span>
-                <span className="font-medium text-[#09090b]">
-                  {assignHeadDept.headUser?.name || assignHeadDept.headUserName ? (
-                    <span className="flex items-center gap-1">
-                      <Crown className="w-3.5 h-3.5 text-amber-500" />
-                      {assignHeadDept.headUser?.name || assignHeadDept.headUserName}
-                    </span>
-                  ) : (
-                    <span className="text-[#a1a1aa] italic">Unassigned</span>
-                  )}
-                </span>
-              </div>
-
-              {(() => {
-                const currentHeadId = assignHeadDept.headUserId || assignHeadDept.headUser?.id;
-                const eligibleEmployees = employees.filter(
-                  (emp) =>
-                    emp.status === 'active' &&
-                    (emp.ventures.some((v) => v.departmentId === assignHeadDept.id) ||
-                      (currentHeadId && emp.id === currentHeadId))
-                );
-                return (
+      {/* Appoint / Reassign Department Head Sheet */}
+      <Sheet
+        open={Boolean(assignHeadDept)}
+        onOpenChange={(open) => !open && setAssignHeadDept(null)}
+      >
+        <SheetContent side="right">
+          {assignHeadDept && (
+            <form onSubmit={handleAssignHeadSubmit} className="flex flex-col h-full">
+              <SheetHeader>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                    <Crown className="w-4 h-4" />
+                  </div>
                   <div>
-                    <label className="block text-xs font-medium text-[#18181b] mb-1">
-                      Designated Head
-                    </label>
-                    {eligibleEmployees.length === 0 ? (
-                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs">
-                        No active employees are currently assigned to this department. Please assign employees to this department first before appointing a head.
-                      </div>
+                    <SheetTitle>Appoint Department Head</SheetTitle>
+                    <SheetDescription>
+                      Designate an operational head for{' '}
+                      <strong className="text-[#09090b]">{assignHeadDept.name}</strong> ({assignHeadDept.ventureName}).
+                    </SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <SheetBody className="space-y-4">
+                {/* Current Head Banner */}
+                <div className="p-3 bg-[#fafafa] border border-[#e4e4e7] rounded-xl text-xs space-y-1">
+                  <span className="text-[11px] text-[#71717a] uppercase font-mono block">
+                    Current Head Status
+                  </span>
+                  <div className="font-medium text-[#09090b] flex items-center gap-1.5">
+                    {assignHeadDept.headUser?.name || assignHeadDept.headUserName ? (
+                      <>
+                        <Crown className="w-3.5 h-3.5 text-amber-500" />
+                        <span>
+                          {assignHeadDept.headUser?.name || assignHeadDept.headUserName}
+                        </span>
+                        <span className="text-[#71717a] font-normal">
+                          ({assignHeadDept.headUser?.email || assignHeadDept.headUserEmail})
+                        </span>
+                      </>
                     ) : (
-                      <select
-                        value={selectedHeadUserId}
-                        onChange={(e) => setSelectedHeadUserId(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#09090b]"
-                      >
-                        <option value="">None (Remove current head)</option>
-                        {eligibleEmployees.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.name} ({emp.email})
-                          </option>
-                        ))}
-                      </select>
+                      <span className="text-[#a1a1aa] italic">Currently unassigned</span>
                     )}
                   </div>
-                );
-              })()}
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#f0f0f2]">
-                <button
+                {(() => {
+                  const currentHeadId =
+                    assignHeadDept.headUserId || assignHeadDept.headUser?.id;
+                  const eligibleEmployees = employees.filter(
+                    (emp) =>
+                      emp.status === 'active' &&
+                      (emp.ventures.some((v) => v.departmentId === assignHeadDept.id) ||
+                        (currentHeadId && emp.id === currentHeadId))
+                  );
+
+                  return (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-[#18181b]">
+                        Designate Head of Department
+                      </label>
+                      {eligibleEmployees.length === 0 ? (
+                        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs leading-relaxed">
+                          No active employees are currently assigned to this department. Please assign employees to this department first in{' '}
+                          <Link href="/employees" className="underline font-semibold">
+                            Employees Management
+                          </Link>{' '}
+                          before appointing a head.
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedHeadUserId}
+                          onChange={(e) => setSelectedHeadUserId(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
+                        >
+                          <option value="">None (Remove / Vacate current head)</option>
+                          {eligibleEmployees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} ({emp.email})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <p className="text-[11px] text-[#71717a] leading-relaxed">
+                        Department Heads automatically receive permissions to view and oversee employee venture access in their department.
+                      </p>
+                    </div>
+                  );
+                })()}
+              </SheetBody>
+
+              <SheetFooter>
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setAssignHeadDept(null)}
-                  className="px-3 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] rounded-md"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  disabled={actionLoading}
-                  className="px-3.5 py-1.5 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                  loading={actionLoading}
                 >
-                  {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                  <span>Confirm Appointment</span>
-                </button>
-              </div>
+                  Confirm Appointment
+                </Button>
+              </SheetFooter>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </SheetContent>
+      </Sheet>
     </AppShell>
   );
 }

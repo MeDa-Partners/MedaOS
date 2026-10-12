@@ -43,6 +43,17 @@ import {
   ShieldCheck,
   Check,
 } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetBody,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const toSlug = (text: string) =>
   text
@@ -1227,24 +1238,32 @@ export default function DevAdminPage() {
         </main>
       </div>
 
-      {/* ===================== MODALS ===================== */}
+      {/* ===================== SHEETS ===================== */}
 
-      {/* CREATE VENTURE MODAL */}
-      {modalType === 'createVenture' && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Register Venture in Catalog</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* CREATE VENTURE SHEET */}
+      <Sheet open={modalType === 'createVenture'} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          <form onSubmit={handleCreateVenture} className="flex flex-col h-full">
+            <SheetHeader>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <SheetTitle>Register Venture in Catalog</SheetTitle>
+                  <SheetDescription>
+                    Add a new portfolio company or business unit to MeDa Partners OS.
+                  </SheetDescription>
+                </div>
+              </div>
+            </SheetHeader>
 
-            <form onSubmit={handleCreateVenture} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Venture Name</label>
-                <input
-                  type="text"
+            <SheetBody className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Venture Name *
+                </label>
+                <Input
                   required
                   value={ventureForm.name}
                   onChange={(e) => {
@@ -1256,143 +1275,150 @@ export default function DevAdminPage() {
                     });
                   }}
                   placeholder="e.g. WayVeda, Digital Chaabi"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Slug (URL Identifier)</label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Slug (URL Identifier) *
+                </label>
+                <Input
                   required
                   value={ventureForm.slug}
                   onChange={(e) => setVentureForm({ ...ventureForm, slug: toSlug(e.target.value) })}
                   placeholder="e.g. wayveda"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
+                  className="font-mono"
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Status
+                </label>
                 <select
                   value={ventureForm.status}
                   onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+            </SheetBody>
 
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
+            <SheetFooter>
+              <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={modalSubmitting}>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Register Venture</span>
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      {/* EDIT VENTURE SHEET */}
+      <Sheet open={modalType === 'editVenture' && Boolean(selectedVenture)} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          {selectedVenture && (
+            <form onSubmit={handleUpdateVenture} className="flex flex-col h-full">
+              <SheetHeader>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <SheetTitle>Edit Venture: {selectedVenture.name}</SheetTitle>
+                    <SheetDescription>
+                      Update company metadata and lifecycle status.
+                    </SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <SheetBody className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Venture Name *
+                  </label>
+                  <Input
+                    required
+                    value={ventureForm.name}
+                    onChange={(e) => setVentureForm({ ...ventureForm, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Slug *
+                  </label>
+                  <Input
+                    required
+                    value={ventureForm.slug}
+                    onChange={(e) => setVentureForm({ ...ventureForm, slug: toSlug(e.target.value) })}
+                    className="font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Status
+                  </label>
+                  <select
+                    value={ventureForm.status}
+                    onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </SheetBody>
+
+              <SheetFooter>
+                <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  <span>Register Venture</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT VENTURE MODAL */}
-      {modalType === 'editVenture' && selectedVenture && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Edit Venture: {selectedVenture.name}</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateVenture} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Venture Name</label>
-                <input
-                  type="text"
-                  required
-                  value={ventureForm.name}
-                  onChange={(e) => setVentureForm({ ...ventureForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Slug</label>
-                <input
-                  type="text"
-                  required
-                  value={ventureForm.slug}
-                  onChange={(e) => setVentureForm({ ...ventureForm, slug: toSlug(e.target.value) })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
-                <select
-                  value={ventureForm.status}
-                  onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                </Button>
+                <Button type="submit" loading={modalSubmitting}>
+                  <Check className="w-3.5 h-3.5" />
                   <span>Save Changes</span>
-                </button>
-              </div>
+                </Button>
+              </SheetFooter>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </SheetContent>
+      </Sheet>
 
-      {/* CREATE DEPARTMENT MODAL */}
-      {modalType === 'createDept' && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Register Department in Catalog</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* CREATE DEPARTMENT SHEET */}
+      <Sheet open={modalType === 'createDept'} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          <form onSubmit={handleCreateDept} className="flex flex-col h-full">
+            <SheetHeader>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                  <FolderTree className="w-4 h-4" />
+                </div>
+                <div>
+                  <SheetTitle>Register Department in Catalog</SheetTitle>
+                  <SheetDescription>
+                    Define an organizational division for a venture.
+                  </SheetDescription>
+                </div>
+              </div>
+            </SheetHeader>
 
-            <form onSubmit={handleCreateDept} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Target Venture</label>
+            <SheetBody className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Target Venture *
+                </label>
                 <select
                   required
                   value={deptForm.ventureId}
                   onChange={(e) => setDeptForm({ ...deptForm, ventureId: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   {allVentures.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -1402,10 +1428,11 @@ export default function DevAdminPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Department Name</label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Department Name *
+                </label>
+                <Input
                   required
                   value={deptForm.name}
                   onChange={(e) => {
@@ -1417,150 +1444,157 @@ export default function DevAdminPage() {
                     });
                   }}
                   placeholder="e.g. Sales, Marketing, Operations"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Slug</label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Slug *
+                </label>
+                <Input
                   required
                   value={deptForm.slug}
                   onChange={(e) => setDeptForm({ ...deptForm, slug: toSlug(e.target.value) })}
                   placeholder="e.g. sales"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
+                  className="font-mono"
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Status
+                </label>
                 <select
                   value={deptForm.status}
                   onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+            </SheetBody>
 
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
+            <SheetFooter>
+              <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={modalSubmitting}>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Register Department</span>
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      {/* EDIT DEPARTMENT SHEET */}
+      <Sheet open={modalType === 'editDept' && Boolean(selectedDept)} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          {selectedDept && (
+            <form onSubmit={handleUpdateDept} className="flex flex-col h-full">
+              <SheetHeader>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <SheetTitle>Edit Department: {selectedDept.name}</SheetTitle>
+                    <SheetDescription>
+                      Update department naming and status.
+                    </SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <SheetBody className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Department Name *
+                  </label>
+                  <Input
+                    required
+                    value={deptForm.name}
+                    onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Slug *
+                  </label>
+                  <Input
+                    required
+                    value={deptForm.slug}
+                    onChange={(e) => setDeptForm({ ...deptForm, slug: toSlug(e.target.value) })}
+                    className="font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Status
+                  </label>
+                  <select
+                    value={deptForm.status}
+                    onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </SheetBody>
+
+              <SheetFooter>
+                <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  <span>Register Department</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT DEPARTMENT MODAL */}
-      {modalType === 'editDept' && selectedDept && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Edit Department: {selectedDept.name}</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateDept} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Department Name</label>
-                <input
-                  type="text"
-                  required
-                  value={deptForm.name}
-                  onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Slug</label>
-                <input
-                  type="text"
-                  required
-                  value={deptForm.slug}
-                  onChange={(e) => setDeptForm({ ...deptForm, slug: toSlug(e.target.value) })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
-                <select
-                  value={deptForm.status}
-                  onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                </Button>
+                <Button type="submit" loading={modalSubmitting}>
+                  <Check className="w-3.5 h-3.5" />
                   <span>Save Changes</span>
-                </button>
-              </div>
+                </Button>
+              </SheetFooter>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </SheetContent>
+      </Sheet>
 
-      {/* CREATE SECTION MODAL */}
-      {modalType === 'createSec' && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Register Section in Catalog</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* CREATE SECTION SHEET */}
+      <Sheet open={modalType === 'createSec'} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          <form onSubmit={handleCreateSec} className="flex flex-col h-full">
+            <SheetHeader>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <SheetTitle>Register Section in Catalog</SheetTitle>
+                  <SheetDescription>
+                    Define a functional area and route permission boundary.
+                  </SheetDescription>
+                </div>
+              </div>
+            </SheetHeader>
 
-            <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-[11px] text-zinc-400 flex items-start gap-2">
-              <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>
-                Identical section slugs (e.g. &quot;sales&quot;) can exist under different departments and represent distinct permission resources.
-              </span>
-            </div>
+            <SheetBody className="space-y-4">
+              <div className="p-3 bg-[#fafafa] border border-[#e4e4e7] rounded-xl text-xs text-[#71717a] flex items-start gap-2">
+                <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  Identical section slugs (e.g. &quot;sales&quot;) can exist under different departments and represent distinct venture permission resources.
+                </span>
+              </div>
 
-            <form onSubmit={handleCreateSec} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Target Department & Venture</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Target Department & Venture *
+                </label>
                 <select
                   required
                   value={secForm.departmentId}
                   onChange={(e) => setSecForm({ ...secForm, departmentId: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   {allDepts.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -1570,10 +1604,11 @@ export default function DevAdminPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Section Name</label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Section Name *
+                </label>
+                <Input
                   required
                   value={secForm.name}
                   onChange={(e) => {
@@ -1585,183 +1620,187 @@ export default function DevAdminPage() {
                     });
                   }}
                   placeholder="e.g. Sales, Orders, Operations"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-zinc-400">Section Slug</label>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-[#18181b]">Section Slug *</label>
                   {secForm.slug && (
-                    <span className={`text-[10px] font-mono ${isSectionImplemented(secForm.slug) ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {isSectionImplemented(secForm.slug) ? '✓ Supported in Code' : '! Catalog-Only (No Code Implementation)'}
+                    <span className={`text-[10px] font-mono ${isSectionImplemented(secForm.slug) ? 'text-emerald-600 font-semibold' : 'text-amber-600'}`}>
+                      {isSectionImplemented(secForm.slug) ? '✓ Code Ready' : '! Catalog-Only'}
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
+                <Input
                   required
                   value={secForm.slug}
                   onChange={(e) => setSecForm({ ...secForm, slug: toSlug(e.target.value) })}
                   placeholder="e.g. sales"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
+                  className="font-mono"
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#18181b]">
+                  Status
+                </label>
                 <select
                   value={secForm.status}
                   onChange={(e) => setSecForm({ ...secForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+            </SheetBody>
 
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  <span>Register Section</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT SECTION MODAL */}
-      {modalType === 'editSec' && selectedSec && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Edit Section: {selectedSec.name}</h3>
-              <button onClick={() => setModalType(null)} className="text-zinc-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateSec} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Section Name</label>
-                <input
-                  type="text"
-                  required
-                  value={secForm.name}
-                  onChange={(e) => setSecForm({ ...secForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-zinc-400">Slug</label>
-                  {secForm.slug && (
-                    <span className={`text-[10px] font-mono ${isSectionImplemented(secForm.slug) ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {isSectionImplemented(secForm.slug) ? '✓ Supported in Code' : '! Catalog-Only'}
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={secForm.slug}
-                  onChange={(e) => setSecForm({ ...secForm, slug: toSlug(e.target.value) })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Status</label>
-                <select
-                  value={secForm.status}
-                  onChange={(e) => setSecForm({ ...secForm, status: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalSubmitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  <span>Save Changes</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION MODAL */}
-      {modalType === 'deleteConfirm' && deleteTarget && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#18181b] border border-red-900/50 rounded-2xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-950 border border-red-800 flex items-center justify-center text-red-400 shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">
-                  Confirm Removal: {deleteTarget.name}
-                </h3>
-                <span className="text-[11px] text-zinc-400 uppercase font-mono">
-                  {deleteTarget.type}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Are you sure you want to delete this {deleteTarget.type}? The server will verify relational dependencies. If employees or child resources exist, consider deactivating it instead to preserve data integrity.
-            </p>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setModalType(null);
-                  setDeleteTarget(null);
-                }}
-                className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs"
-              >
+            <SheetFooter>
+              <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
                 Cancel
-              </button>
-              <button
-                onClick={handleExecuteDelete}
-                disabled={modalSubmitting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs flex items-center gap-1.5"
-              >
-                {modalSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                <span>Remove Resource</span>
-              </button>
+              </Button>
+              <Button type="submit" loading={modalSubmitting}>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Register Section</span>
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      {/* EDIT SECTION SHEET */}
+      <Sheet open={modalType === 'editSec' && Boolean(selectedSec)} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          {selectedSec && (
+            <form onSubmit={handleUpdateSec} className="flex flex-col h-full">
+              <SheetHeader>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <SheetTitle>Edit Section: {selectedSec.name}</SheetTitle>
+                    <SheetDescription>
+                      Update section catalog configuration.
+                    </SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <SheetBody className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Section Name *
+                  </label>
+                  <Input
+                    required
+                    value={secForm.name}
+                    onChange={(e) => setSecForm({ ...secForm, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-[#18181b]">Slug *</label>
+                    {secForm.slug && (
+                      <span className={`text-[10px] font-mono ${isSectionImplemented(secForm.slug) ? 'text-emerald-600 font-semibold' : 'text-amber-600'}`}>
+                        {isSectionImplemented(secForm.slug) ? '✓ Code Ready' : '! Catalog-Only'}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    required
+                    value={secForm.slug}
+                    onChange={(e) => setSecForm({ ...secForm, slug: toSlug(e.target.value) })}
+                    className="font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#18181b]">
+                    Status
+                  </label>
+                  <select
+                    value={secForm.status}
+                    onChange={(e) => setSecForm({ ...secForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </SheetBody>
+
+              <SheetFooter>
+                <Button type="button" variant="secondary" onClick={() => setModalType(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={modalSubmitting}>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </Button>
+              </SheetFooter>
+            </form>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* DELETE CONFIRMATION SHEET */}
+      <Sheet open={modalType === 'deleteConfirm' && Boolean(deleteTarget)} onOpenChange={(open) => !open && setModalType(null)}>
+        <SheetContent side="right">
+          {deleteTarget && (
+            <div className="flex flex-col h-full">
+              <SheetHeader>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 text-red-600 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <SheetTitle>Confirm Removal: {deleteTarget.name}</SheetTitle>
+                    <SheetDescription className="font-mono uppercase text-[10px]">
+                      Target Type: {deleteTarget.type}
+                    </SheetDescription>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <SheetBody className="space-y-4">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 leading-relaxed">
+                  Are you sure you want to delete this {deleteTarget.type}? The server will verify relational dependencies. If employees or child resources exist, consider deactivating it instead to preserve data integrity.
+                </div>
+
+                <div className="p-3 bg-[#fafafa] border border-[#e4e4e7] rounded-xl text-xs font-mono text-[#52525b] space-y-1">
+                  <div>Resource Name: <strong className="text-[#09090b]">{deleteTarget.name}</strong></div>
+                  <div>Target Type: <strong className="text-[#09090b]">{deleteTarget.type}</strong></div>
+                  <div>Identifier ID: <span className="text-[#71717a]">{deleteTarget.id}</span></div>
+                </div>
+              </SheetBody>
+
+              <SheetFooter>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setModalType(null);
+                    setDeleteTarget(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleExecuteDelete}
+                  loading={modalSubmitting}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove Resource</span>
+                </Button>
+              </SheetFooter>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

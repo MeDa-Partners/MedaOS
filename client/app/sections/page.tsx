@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/context/auth-context';
 import { api, Section, Department, Venture, ApiError } from '@/lib/api';
 import { isSectionImplemented } from '@/lib/feature-registry';
 import {
   Layers,
-  Search,
   AlertCircle,
   RefreshCw,
   Building2,
@@ -15,10 +15,13 @@ import {
   ExternalLink,
   Users2,
   Terminal,
-  ShieldCheck,
-  CheckCircle2,
 } from 'lucide-react';
-import Link from 'next/link';
+import { PageHeader } from '@/components/ui/page-header';
+import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function SectionsPage() {
   const { user, isAdmin, isDepartmentHead, refreshUser } = useAuth();
@@ -90,42 +93,37 @@ export default function SectionsPage() {
   return (
     <AppShell>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#e4e4e7]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-[#18181b]" />
-              <h1 className="text-xl font-bold text-[#09090b]">Sections Directory</h1>
-            </div>
-            <p className="text-xs text-[#71717a] mt-1">
-              Browse registered application sections and permission resources. Assign permissions to users via Employee Management.
-            </p>
-          </div>
+        {/* Page Header */}
+        <PageHeader
+          icon={<Layers className="w-4 h-4" />}
+          title="Sections Directory"
+          description="Browse registered functional sections and access boundaries. Assign personnel permissions via Employee Management."
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={reloadData}
+                disabled={loading}
+                title="Refresh"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+              <Link href="/employees">
+                <Button size="sm">
+                  <Users2 className="w-3.5 h-3.5" />
+                  <span>Assign Section Permissions</span>
+                </Button>
+              </Link>
+            </>
+          }
+        />
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={reloadData}
-              disabled={loading}
-              className="p-2 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <Link
-              href="/employees"
-              className="px-3.5 py-2 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
-            >
-              <Users2 className="w-4 h-4" />
-              <span>Assign Section Permissions</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Dev Admin Responsibility Banner */}
-        <div className="p-4 bg-[#fafafa] border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        {/* Boundary Notice Banner */}
+        <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
               <Terminal className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
@@ -133,14 +131,15 @@ export default function SectionsPage() {
                 Catalog Architecture Boundary
               </span>
               <p className="text-[#71717a] mt-0.5">
-                Creating, updating, and removing application sections belongs exclusively to <span className="font-medium text-[#09090b]">Dev Admin</span>. Regular administrators manage employee access and section grants.
+                Creating, updating, and removing application sections belongs exclusively to{' '}
+                <strong className="text-[#09090b] font-medium">Dev Admin</strong>. Regular administrators manage employee access and section grants.
               </p>
             </div>
           </div>
 
           <Link
             href="/dev"
-            className="px-3 py-1.5 bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1.5"
           >
             <span>Open Dev Admin (/dev)</span>
             <ExternalLink className="w-3 h-3 text-[#71717a]" />
@@ -149,150 +148,153 @@ export default function SectionsPage() {
 
         {/* Error notification */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-            <span>{error}</span>
+            <div className="flex-1 font-medium">{error}</div>
           </div>
         )}
 
-        {/* Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 border border-[#e4e4e7] rounded-xl shadow-2xs">
-          <div className="relative flex-1 w-full sm:w-auto">
-            <Search className="w-4 h-4 text-[#a1a1aa] absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sections by name, slug, department, or venture..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-lg focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#09090b]"
-            />
-          </div>
+        {/* Unified Filter Toolbar */}
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search sections by name, slug, department, or venture..."
+          count={filteredSections.length}
+          totalCount={sections.length}
+          hasActiveFilters={Boolean(selectedVentureFilter || selectedDepartmentFilter || search)}
+          onClearFilters={() => {
+            setSearch('');
+            setSelectedVentureFilter('');
+            setSelectedDepartmentFilter('');
+          }}
+        >
+          <FilterSelect
+            icon={<Building2 className="w-3.5 h-3.5" />}
+            value={selectedVentureFilter}
+            onChange={(e) => {
+              setSelectedVentureFilter(e.target.value);
+              setSelectedDepartmentFilter('');
+            }}
+          >
+            <option value="">All Ventures</option>
+            {ventures.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </FilterSelect>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <select
-              value={selectedVentureFilter}
-              onChange={(e) => {
-                setSelectedVentureFilter(e.target.value);
-                setSelectedDepartmentFilter('');
-              }}
-              className="text-xs px-3 py-1.5 bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-[#18181b] focus:outline-hidden"
-            >
-              <option value="">All Ventures</option>
-              {ventures.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
+          <FilterSelect
+            icon={<FolderTree className="w-3.5 h-3.5" />}
+            value={selectedDepartmentFilter}
+            onChange={(e) => setSelectedDepartmentFilter(e.target.value)}
+          >
+            <option value="">All Departments</option>
+            {departments
+              .filter((d) => !selectedVentureFilter || d.ventureId === selectedVentureFilter)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} {selectedVentureFilter ? '' : `(${d.ventureName})`}
                 </option>
               ))}
-            </select>
-
-            <select
-              value={selectedDepartmentFilter}
-              onChange={(e) => setSelectedDepartmentFilter(e.target.value)}
-              className="text-xs px-3 py-1.5 bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-[#18181b] focus:outline-hidden"
-            >
-              <option value="">All Departments</option>
-              {departments
-                .filter((d) => !selectedVentureFilter || d.ventureId === selectedVentureFilter)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.ventureName})
-                  </option>
-                ))}
-            </select>
-          </div>
-        </div>
+          </FilterSelect>
+        </FilterBar>
 
         {/* Sections Grid */}
         {loading ? (
-          <div className="py-16 text-center text-xs text-[#71717a]">
-            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#09090b]" />
-            <span>Loading sections directory...</span>
+          <div className="py-24 flex flex-col items-center justify-center text-[#71717a]">
+            <RefreshCw className="w-6 h-6 animate-spin mb-2" />
+            <span className="text-xs font-mono">Loading sections directory...</span>
           </div>
         ) : filteredSections.length === 0 ? (
-          <div className="py-16 text-center text-xs text-[#71717a] bg-white border border-[#e4e4e7] rounded-xl">
-            <span>No sections match your filter criteria.</span>
-          </div>
+          <EmptyState
+            icon={Layers}
+            title="No sections found"
+            description={
+              search || selectedVentureFilter || selectedDepartmentFilter
+                ? 'No sections match your search or filter options.'
+                : 'Sections are defined in code and registered in Dev Admin.'
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredSections.map((sec) => {
               const isImplemented = isSectionImplemented(sec.slug);
 
               return (
-                <div
-                  key={sec.id}
-                  className="bg-white border border-[#e4e4e7] hover:border-[#d4d4d8] rounded-xl p-5 shadow-2xs transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold text-[#09090b]">{sec.name}</h3>
-                        <span className="text-[11px] font-mono text-[#71717a]">/{sec.slug}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {isImplemented ? (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Code Ready
+                <Card key={sec.id} hoverable className="flex flex-col justify-between">
+                  <div>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <CardTitle>{sec.name}</CardTitle>
+                          <span className="text-[11px] font-mono text-[#71717a] block">
+                            /{sec.slug}
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                            Catalog Only
-                          </span>
-                        )}
-                        <span
-                          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                            sec.status === 'active'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
-                          }`}
-                        >
-                          {sec.status}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {isImplemented ? (
+                            <Badge variant="success">Code Ready</Badge>
+                          ) : (
+                            <Badge variant="warning">Catalog Only</Badge>
+                          )}
+                          <Badge
+                            variant={sec.status === 'active' ? 'venture' : 'secondary'}
+                            dot={sec.status === 'active'}
+                          >
+                            {sec.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#a1a1aa]" /> Venture
+                        </span>
+                        <span className="font-semibold text-[#09090b]">
+                          {sec.ventureName || 'Global'}
                         </span>
                       </div>
-                    </div>
 
-                    <div className="space-y-1 text-xs text-[#52525b] pt-1 border-t border-[#f0f0f2]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#a1a1aa] flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5" /> Venture:
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <FolderTree className="w-3.5 h-3.5 text-[#a1a1aa]" /> Department
                         </span>
-                        <span className="font-medium text-[#18181b]">{sec.ventureName || 'Venture'}</span>
+                        <span className="font-semibold text-[#09090b]">
+                          {sec.departmentName || 'General'}
+                        </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#a1a1aa] flex items-center gap-1">
-                          <FolderTree className="w-3.5 h-3.5" /> Department:
-                        </span>
-                        <span className="font-medium text-[#18181b]">{sec.departmentName || 'Department'}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[#a1a1aa]">Application Route:</span>
-                        <span className="font-mono text-[11px] text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded">
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-[#f4f4f5]">
+                        <span className="text-[#71717a]">Route</span>
+                        <span className="font-mono text-[11px] text-[#09090b] bg-[#fafafa] border border-[#e4e4e7] px-2 py-0.5 rounded-md">
                           {sec.route}
                         </span>
                       </div>
-                    </div>
+                    </CardContent>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-xs">
+                  <CardFooter>
                     <Link
                       href={sec.route}
-                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
                     >
-                      <span>Open Live Workspace</span>
+                      <span>Open Live Route</span>
                       <ExternalLink className="w-3 h-3" />
                     </Link>
 
                     <Link
                       href={`/employees?sectionId=${sec.id}`}
-                      className="text-[11px] font-medium text-[#71717a] hover:text-[#09090b] flex items-center gap-1"
+                      className="text-[11px] font-medium text-[#71717a] hover:text-[#09090b] flex items-center gap-1 transition-colors"
                     >
                       <Users2 className="w-3.5 h-3.5" />
                       <span>Manage Access</span>
                     </Link>
-                  </div>
-                </div>
+                  </CardFooter>
+                </Card>
               );
             })}
           </div>

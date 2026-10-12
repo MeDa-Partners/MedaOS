@@ -2,7 +2,18 @@
 
 import React, { useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { Lock, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetBody,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -17,7 +28,18 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  if (!isOpen) return null;
+  const resetForm = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError(null);
+    setSuccess(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,12 +60,9 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
       await api.auth.changePassword(currentPassword, newPassword);
       setSuccess(true);
       setTimeout(() => {
-        setSuccess(false);
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
+        resetForm();
         onClose();
-      }, 1500);
+      }, 1200);
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Failed to update password');
     } finally {
@@ -52,97 +71,100 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md bg-white border border-[#e4e4e7] rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0f0f2]">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-[#18181b]" />
-            <h3 className="text-sm font-semibold text-[#18181b]">Change Password</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[#71717a] hover:text-[#18181b] p-1 rounded-md transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-xs text-red-700">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <SheetContent side="right">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+          <SheetHeader>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <SheetTitle>Change Account Password</SheetTitle>
+                <SheetDescription>
+                  Update your personal login password for MeDa Partners OS.
+                </SheetDescription>
+              </div>
             </div>
-          )}
+          </SheetHeader>
 
-          {success && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs text-emerald-700">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Password updated successfully!</span>
+          <SheetBody className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs text-emerald-700">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Password updated successfully!</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#18181b]">
+                Current Password *
+              </label>
+              <Input
+                type="password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Enter current password"
+              />
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-medium text-[#71717a] mb-1.5">
-              Current Password
-            </label>
-            <input
-              type="password"
-              required
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-[#e4e4e7] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#18181b] focus:border-[#18181b] transition-all"
-              placeholder="Enter current password"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#18181b]">
+                New Password *
+              </label>
+              <Input
+                type="password"
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+              <p className="text-[11px] text-[#71717a]">
+                Must be at least 8 characters long.
+              </p>
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[#71717a] mb-1.5">
-              New Password (min 8 chars)
-            </label>
-            <input
-              type="password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-[#e4e4e7] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#18181b] focus:border-[#18181b] transition-all"
-              placeholder="Enter new password"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#18181b]">
+                Confirm New Password *
+              </label>
+              <Input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
+              />
+            </div>
+          </SheetBody>
 
-          <div>
-            <label className="block text-xs font-medium text-[#71717a] mb-1.5">
-              Confirm New Password
-            </label>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-[#e4e4e7] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#18181b] focus:border-[#18181b] transition-all"
-              placeholder="Re-type new password"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button
+          <SheetFooter>
+            <Button
               type="button"
-              onClick={onClose}
+              variant="secondary"
+              onClick={handleClose}
               disabled={isLoading}
-              className="px-4 py-2 text-xs font-medium text-[#71717a] hover:text-[#18181b] rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={isLoading || success}
-              className="px-4 py-2 text-xs font-medium bg-[#18181b] text-white rounded-lg hover:bg-black disabled:opacity-50 transition-all shadow-xs"
+              loading={isLoading}
+              disabled={success}
             >
-              {isLoading ? 'Updating...' : 'Update Password'}
-            </button>
-          </div>
+              Update Password
+            </Button>
+          </SheetFooter>
         </form>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

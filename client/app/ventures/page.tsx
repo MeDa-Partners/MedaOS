@@ -9,14 +9,19 @@ import { isVentureSupported } from '@/lib/feature-registry';
 import {
   Building2,
   FolderTree,
-  Search,
   AlertCircle,
   RefreshCw,
   ExternalLink,
   Users2,
   Terminal,
-  ShieldCheck,
+  Layers,
 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { FilterBar } from '@/components/ui/filter-bar';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function VenturesPage() {
   const { refreshUser } = useAuth();
@@ -71,42 +76,37 @@ export default function VenturesPage() {
   return (
     <AppShell>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#e4e4e7]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-[#18181b]" />
-              <h1 className="text-xl font-bold text-[#09090b]">Ventures Directory</h1>
-            </div>
-            <p className="text-xs text-[#71717a] mt-1">
-              Active venture companies and portfolio brands operating under MeDa Partners OS.
-            </p>
-          </div>
+        {/* Page Header */}
+        <PageHeader
+          icon={<Building2 className="w-4 h-4" />}
+          title="Ventures Directory"
+          description="Active portfolio companies, business units, and venture brands operating under MeDa Partners OS."
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={reloadData}
+                disabled={loading}
+                title="Refresh"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </Button>
+              <Link href="/employees">
+                <Button size="sm">
+                  <Users2 className="w-3.5 h-3.5" />
+                  <span>Assign Employees</span>
+                </Button>
+              </Link>
+            </>
+          }
+        />
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={reloadData}
-              disabled={loading}
-              className="p-2 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <Link
-              href="/employees"
-              className="px-3.5 py-2 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
-            >
-              <Users2 className="w-4 h-4" />
-              <span>Assign Employees</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Dev Admin Responsibility Banner */}
-        <div className="p-4 bg-[#fafafa] border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        {/* Catalog Boundary Banner */}
+        <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
               <Terminal className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
@@ -114,14 +114,15 @@ export default function VenturesPage() {
                 Venture Catalog Authority
               </span>
               <p className="text-[#71717a] mt-0.5">
-                Registering new ventures, editing metadata, or removing portfolio companies belongs exclusively to <span className="font-medium text-[#09090b]">Dev Admin</span>. Operational employee assignments are managed in Employee Management.
+                Registering new ventures, editing metadata, or removing portfolio companies belongs exclusively to{' '}
+                <strong className="text-[#09090b] font-medium">Dev Admin</strong>. Operational access assignments are managed in Employee Management.
               </p>
             </div>
           </div>
 
           <Link
             href="/dev"
-            className="px-3 py-1.5 bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1.5"
           >
             <span>Open Dev Admin (/dev)</span>
             <ExternalLink className="w-3 h-3 text-[#71717a]" />
@@ -130,114 +131,111 @@ export default function VenturesPage() {
 
         {/* Notification */}
         {error && (
-          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <div className="flex-1 font-medium">{error}</div>
           </div>
         )}
 
-        {/* Search */}
-        <div className="relative max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#a1a1aa]" />
-          <input
-            type="text"
-            placeholder="Search ventures by name or slug..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#09090b]"
-          />
-        </div>
+        {/* Filter Bar */}
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search ventures by name or slug..."
+          count={filteredVentures.length}
+          totalCount={ventures.length}
+          hasActiveFilters={Boolean(search)}
+          onClearFilters={() => setSearch('')}
+        />
 
         {/* Ventures Grid */}
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-[#71717a]">
+          <div className="py-24 flex flex-col items-center justify-center text-[#71717a]">
             <RefreshCw className="w-6 h-6 animate-spin mb-2" />
-            <span className="text-xs">Loading ventures...</span>
+            <span className="text-xs font-mono">Loading ventures directory...</span>
           </div>
         ) : filteredVentures.length === 0 ? (
-          <div className="py-16 text-center bg-white border border-[#e4e4e7] rounded-xl p-8 shadow-xs">
-            <Building2 className="w-10 h-10 text-[#a1a1aa] mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-[#09090b]">No ventures found</h3>
-            <p className="text-xs text-[#71717a] mt-1 max-w-sm mx-auto">
-              Ventures are registered through Dev Admin at <span className="font-mono">/dev</span>.
-            </p>
-          </div>
+          <EmptyState
+            icon={Building2}
+            title="No ventures found"
+            description={
+              search
+                ? 'No ventures match your active search keyword.'
+                : 'Ventures are registered through Dev Admin at /dev.'
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredVentures.map((v) => {
               const supported = isVentureSupported(v.slug);
 
               return (
-                <div
-                  key={v.id}
-                  className="bg-white border border-[#e4e4e7] rounded-xl p-5 shadow-2xs hover:border-[#d4d4d8] transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold text-[#09090b]">{v.name}</h3>
-                        <span className="text-[11px] font-mono text-[#71717a]">/{v.slug}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {supported ? (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Template
+                <Card key={v.id} hoverable className="flex flex-col justify-between">
+                  <div>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <CardTitle>{v.name}</CardTitle>
+                          <span className="text-[11px] font-mono text-[#71717a] block">
+                            /{v.slug}
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">
-                            Catalog
-                          </span>
-                        )}
-                        <span
-                          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                            v.status === 'active'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
-                          }`}
-                        >
-                          {v.status || 'active'}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {supported ? (
+                            <Badge variant="success">Template</Badge>
+                          ) : (
+                            <Badge variant="secondary">Catalog</Badge>
+                          )}
+                          <Badge
+                            variant={v.status === 'active' ? 'venture' : 'secondary'}
+                            dot={v.status === 'active'}
+                          >
+                            {v.status || 'active'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <FolderTree className="w-3.5 h-3.5 text-[#a1a1aa]" /> Departments
+                        </span>
+                        <span className="font-semibold text-[#09090b]">
+                          {v.departmentCount ?? 0}
                         </span>
                       </div>
-                    </div>
 
-                    <div className="space-y-1.5 text-xs text-[#52525b] pt-1 border-t border-[#f0f0f2]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#a1a1aa] flex items-center gap-1">
-                          <FolderTree className="w-3.5 h-3.5" /> Departments:
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#71717a] flex items-center gap-1.5">
+                          <Users2 className="w-3.5 h-3.5 text-[#a1a1aa]" /> Personnel
                         </span>
-                        <span className="font-medium text-[#18181b]">{v.departmentCount ?? 0}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#a1a1aa] flex items-center gap-1">
-                          <Users2 className="w-3.5 h-3.5" /> Assigned Personnel:
-                        </span>
-                        <span className="font-medium text-[#18181b]">
+                        <span className="font-semibold text-[#09090b]">
                           {(v as any).employeeCount ?? 'Managed'}
                         </span>
                       </div>
-                    </div>
+                    </CardContent>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-xs">
+                  <CardFooter>
                     <Link
                       href={`/${v.slug}`}
-                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
                     >
-                      <span>Venture Dashboard</span>
+                      <span>Venture Hub</span>
                       <ExternalLink className="w-3 h-3" />
                     </Link>
 
                     <Link
                       href={`/departments?ventureId=${v.id}`}
-                      className="text-[11px] font-medium text-[#71717a] hover:text-[#09090b] flex items-center gap-1"
+                      className="text-[11px] font-medium text-[#71717a] hover:text-[#09090b] flex items-center gap-1 transition-colors"
                     >
                       <FolderTree className="w-3.5 h-3.5" />
                       <span>View Departments</span>
                     </Link>
-                  </div>
-                </div>
+                  </CardFooter>
+                </Card>
               );
             })}
           </div>
