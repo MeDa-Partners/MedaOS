@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Search, X, SlidersHorizontal } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 interface FilterBarProps {
   search?: string;
@@ -98,13 +98,14 @@ export function FilterSelect({
   ...props
 }: FilterSelectProps) {
   return (
-    <div className="relative inline-flex items-center">
+    <div className="relative inline-flex items-center" title={label}>
       {icon && (
         <span className="absolute left-2.5 text-[#71717a] pointer-events-none">
           {icon}
         </span>
       )}
       <select
+        aria-label={label}
         className={`h-8.5 ${icon ? 'pl-7.5' : 'pl-3'} pr-8 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-[#18181b] hover:bg-white focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#09090b] focus:border-[#09090b] cursor-pointer transition-all ${className}`}
         {...props}
       >

@@ -17,8 +17,6 @@ import {
   Terminal,
   ExternalLink,
   Network,
-  Users2,
-  Layers,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
@@ -37,7 +35,7 @@ import {
 } from '@/components/ui/sheet';
 
 export default function DepartmentsPage() {
-  const { user, isAdmin, refreshUser } = useAuth();
+  const { isAdmin, refreshUser } = useAuth();
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [ventures, setVentures] = useState<Venture[]>([]);
@@ -300,15 +298,20 @@ export default function DepartmentsPage() {
                         <span className="text-[#71717a] flex items-center gap-1.5">
                           <Crown className="w-3.5 h-3.5 text-amber-500" /> Department Head
                         </span>
-                        <span className="font-medium text-[#09090b]">
+                        <div className="text-right">
                           {headName ? (
-                            <span className="flex items-center gap-1 text-[#09090b]">
-                              {headName}
-                            </span>
+                            <div>
+                              <span className="font-medium text-[#09090b]">{headName}</span>
+                              {headEmail && (
+                                <span className="block text-[10px] font-mono text-[#71717a]">
+                                  {headEmail}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[#a1a1aa] italic font-normal">Unassigned</span>
                           )}
-                        </span>
+                        </div>
                       </div>
 
                       {/* Count Metrics Box */}

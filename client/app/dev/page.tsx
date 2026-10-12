@@ -1,25 +1,19 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   api,
   DevCatalogOverview,
-  DevVentureOverviewItem,
-  Venture,
-  Department,
-  Section,
   ApiError,
 } from '@/lib/api';
 import {
   SUPPORTED_SECTIONS,
   SUPPORTED_VENTURES,
   isSectionImplemented,
-  isVentureSupported,
 } from '@/lib/feature-registry';
 import {
   Terminal,
-  ShieldAlert,
   Building2,
   FolderTree,
   Layers,
@@ -34,10 +28,8 @@ import {
   ExternalLink,
   Loader2,
   X,
-  Search,
   Sparkles,
   Info,
-  ChevronRight,
   Code2,
   KeyRound,
   ShieldCheck,
@@ -61,6 +53,10 @@ const toSlug = (text: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+
+type CatalogVentureItem = { id: string; name: string; slug: string; status?: string };
+type CatalogDeptItem = { id: string; name: string; slug: string; ventureId: string; status?: string };
+type CatalogSecItem = { id: string; name: string; slug: string; departmentId: string; status?: string };
 
 export default function DevAdminPage() {
   // Developer Auth State
@@ -96,9 +92,9 @@ export default function DevAdminPage() {
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
   // Selected item for edit / delete
-  const [selectedVenture, setSelectedVenture] = useState<Venture | null>(null);
-  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
-  const [selectedSec, setSelectedSec] = useState<Section | null>(null);
+  const [selectedVenture, setSelectedVenture] = useState<CatalogVentureItem | null>(null);
+  const [selectedDept, setSelectedDept] = useState<CatalogDeptItem | null>(null);
+  const [selectedSec, setSelectedSec] = useState<CatalogSecItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     type: 'venture' | 'department' | 'section';
     id: string;
@@ -119,42 +115,53 @@ export default function DevAdminPage() {
   }, [notification]);
 
   // Check Developer Session on Mount
-  const checkDevSession = useCallback(async () => {
-    setIsDevAuthLoading(true);
-    try {
-      const me = await api.dev.me();
-      setIsDevAuthenticated(true);
-      setDevUser(me);
-    } catch {
-      setIsDevAuthenticated(false);
-      setDevUser(null);
-    } finally {
-      setIsDevAuthLoading(false);
-    }
+  useEffect(() => {
+    let active = true;
+    api.dev.me()
+      .then((me) => {
+        if (!active) return;
+        setIsDevAuthenticated(true);
+        setDevUser(me);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsDevAuthenticated(false);
+        setDevUser(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsDevAuthLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  useEffect(() => {
-    checkDevSession();
-  }, [checkDevSession]);
-
   // Load Catalog Overview once authenticated
-  const loadCatalog = useCallback(async () => {
-    if (!isDevAuthenticated) return;
-    setLoadingCatalog(true);
-    try {
-      const data = await api.dev.getCatalogOverview();
-      setOverview(data);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to fetch catalog overview';
-      setNotification({ type: 'error', message: msg });
-    } finally {
-      setLoadingCatalog(false);
-    }
-  }, [isDevAuthenticated]);
-
   useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog, refreshCount]);
+    if (!isDevAuthenticated) return;
+    let active = true;
+
+    api.dev.getCatalogOverview()
+      .then((data) => {
+        if (!active) return;
+        setOverview(data);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        const msg = err instanceof ApiError ? err.message : 'Failed to fetch catalog overview';
+        setNotification({ type: 'error', message: msg });
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingCatalog(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isDevAuthenticated, refreshCount]);
 
   // Handle Developer Login
   const handleDevLogin = async (e: React.FormEvent) => {
@@ -165,6 +172,7 @@ export default function DevAdminPage() {
       const res = await api.dev.login(loginForm);
       setIsDevAuthenticated(true);
       setDevUser({ username: res.username });
+      setLoadingCatalog(true);
       setNotification({ type: 'success', message: 'Developer session authenticated' });
     } catch (err: unknown) {
       setLoginError(err instanceof ApiError ? err.message : 'Authentication failed');
@@ -442,6 +450,12 @@ export default function DevAdminPage() {
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">
                 Catalog Authority
               </span>
+              {devUser && (
+                <span className="text-[11px] font-mono text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60 hidden sm:inline-flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {devUser.username}
+                </span>
+              )}
             </div>
             <span className="text-[11px] text-zinc-400">
               Structural Catalog & Feature Registry Console
@@ -737,7 +751,7 @@ export default function DevAdminPage() {
                             <button
                               onClick={() => {
                                 setSelectedVenture(v);
-                                setVentureForm({ name: v.name, slug: v.slug, status: v.status as any });
+                                setVentureForm({ name: v.name, slug: v.slug, status: v.status as 'active' | 'inactive' });
                                 setModalType('editVenture');
                               }}
                               className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"
@@ -795,8 +809,8 @@ export default function DevAdminPage() {
 
                                     <button
                                       onClick={() => {
-                                        setSelectedDept(d as any);
-                                        setDeptForm({ ventureId: d.ventureId, name: d.name, slug: d.slug, status: d.status as any });
+                                        setSelectedDept(d);
+                                        setDeptForm({ ventureId: d.ventureId, name: d.name, slug: d.slug, status: d.status as 'active' | 'inactive' });
                                         setModalType('editDept');
                                       }}
                                       className="p-1 text-zinc-400 hover:text-white"
@@ -856,8 +870,8 @@ export default function DevAdminPage() {
                                           <div className="flex items-center gap-1">
                                             <button
                                               onClick={() => {
-                                                setSelectedSec(s as any);
-                                                setSecForm({ departmentId: s.departmentId, name: s.name, slug: s.slug, status: s.status as any });
+                                                setSelectedSec(s);
+                                                setSecForm({ departmentId: s.departmentId, name: s.name, slug: s.slug, status: s.status as 'active' | 'inactive' });
                                                 setModalType('editSec');
                                               }}
                                               className="p-1 text-zinc-400 hover:text-white"
@@ -957,7 +971,7 @@ export default function DevAdminPage() {
                             <button
                               onClick={() => {
                                 setSelectedVenture(v);
-                                setVentureForm({ name: v.name, slug: v.slug, status: v.status as any });
+                                setVentureForm({ name: v.name, slug: v.slug, status: v.status as 'active' | 'inactive' });
                                 setModalType('editVenture');
                               }}
                               className="p-1 text-zinc-400 hover:text-white"
@@ -1043,8 +1057,8 @@ export default function DevAdminPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => {
-                                setSelectedDept(d as any);
-                                setDeptForm({ ventureId: d.ventureId, name: d.name, slug: d.slug, status: d.status as any });
+                                setSelectedDept(d);
+                                setDeptForm({ ventureId: d.ventureId, name: d.name, slug: d.slug, status: d.status as 'active' | 'inactive' });
                                 setModalType('editDept');
                               }}
                               className="p-1 text-zinc-400 hover:text-white"
@@ -1143,8 +1157,8 @@ export default function DevAdminPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => {
-                                setSelectedSec(s as any);
-                                setSecForm({ departmentId: s.departmentId, name: s.name, slug: s.slug, status: s.status as any });
+                                setSelectedSec(s);
+                                setSecForm({ departmentId: s.departmentId, name: s.name, slug: s.slug, status: s.status as 'active' | 'inactive' });
                                 setModalType('editSec');
                               }}
                               className="p-1 text-zinc-400 hover:text-white"
@@ -1297,7 +1311,7 @@ export default function DevAdminPage() {
                 </label>
                 <select
                   value={ventureForm.status}
-                  onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as any })}
+                  onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as 'active' | 'inactive' })}
                   className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
@@ -1368,7 +1382,7 @@ export default function DevAdminPage() {
                   </label>
                   <select
                     value={ventureForm.status}
-                    onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as any })}
+                    onChange={(e) => setVentureForm({ ...ventureForm, status: e.target.value as 'active' | 'inactive' })}
                     className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                   >
                     <option value="active">Active</option>
@@ -1466,7 +1480,7 @@ export default function DevAdminPage() {
                 </label>
                 <select
                   value={deptForm.status}
-                  onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as any })}
+                  onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as 'active' | 'inactive' })}
                   className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
@@ -1537,7 +1551,7 @@ export default function DevAdminPage() {
                   </label>
                   <select
                     value={deptForm.status}
-                    onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as any })}
+                    onChange={(e) => setDeptForm({ ...deptForm, status: e.target.value as 'active' | 'inactive' })}
                     className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                   >
                     <option value="active">Active</option>
@@ -1647,7 +1661,7 @@ export default function DevAdminPage() {
                 </label>
                 <select
                   value={secForm.status}
-                  onChange={(e) => setSecForm({ ...secForm, status: e.target.value as any })}
+                  onChange={(e) => setSecForm({ ...secForm, status: e.target.value as 'active' | 'inactive' })}
                   className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                 >
                   <option value="active">Active</option>
@@ -1723,7 +1737,7 @@ export default function DevAdminPage() {
                   </label>
                   <select
                     value={secForm.status}
-                    onChange={(e) => setSecForm({ ...secForm, status: e.target.value as any })}
+                    onChange={(e) => setSecForm({ ...secForm, status: e.target.value as 'active' | 'inactive' })}
                     className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] cursor-pointer"
                   >
                     <option value="active">Active</option>

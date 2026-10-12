@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
-import { useAuth } from '@/context/auth-context';
 import { api, Venture, ApiError } from '@/lib/api';
 import { isVentureSupported } from '@/lib/feature-registry';
 import {
@@ -14,7 +13,6 @@ import {
   ExternalLink,
   Users2,
   Terminal,
-  Layers,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar } from '@/components/ui/filter-bar';
@@ -24,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 
 export default function VenturesPage() {
-  const { refreshUser } = useAuth();
 
   const [ventures, setVentures] = useState<Venture[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +209,7 @@ export default function VenturesPage() {
                           <Users2 className="w-3.5 h-3.5 text-[#a1a1aa]" /> Personnel
                         </span>
                         <span className="font-semibold text-[#09090b]">
-                          {(v as any).employeeCount ?? 'Managed'}
+                          {v.employeeCount ?? 'Managed'}
                         </span>
                       </div>
                     </CardContent>

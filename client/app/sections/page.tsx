@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
-import { useAuth } from '@/context/auth-context';
 import { api, Section, Department, Venture, ApiError } from '@/lib/api';
 import { isSectionImplemented } from '@/lib/feature-registry';
 import {
@@ -24,7 +23,6 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 
 export default function SectionsPage() {
-  const { user, isAdmin, isDepartmentHead, refreshUser } = useAuth();
 
   const [sections, setSections] = useState<Section[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);

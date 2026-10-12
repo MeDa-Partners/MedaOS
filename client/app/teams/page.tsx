@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/context/auth-context';
 import { api, Team, Department, Venture, EmployeeResponseItem, ApiError } from '@/lib/api';
@@ -776,9 +777,9 @@ export default function TeamsPage() {
                       {eligibleEmployees.length === 0 ? (
                         <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-xs leading-relaxed">
                           No active employees are currently assigned to this team. Please assign employees to this team first in{' '}
-                          <a href="/employees" className="underline font-semibold">
+                          <Link href="/employees" className="underline font-semibold">
                             Employees Management
-                          </a>{' '}
+                          </Link>{' '}
                           before appointing a head.
                         </div>
                       ) : (

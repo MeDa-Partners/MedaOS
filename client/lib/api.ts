@@ -68,6 +68,7 @@ export interface Venture {
   departmentCount?: number;
   teamCount?: number;
   sectionCount?: number;
+  employeeCount?: number;
   sections?: Section[];
   createdAt?: string;
   updatedAt?: string;
