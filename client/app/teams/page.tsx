@@ -253,11 +253,6 @@ export default function TeamsPage() {
       icon={<Network className="w-3.5 h-3.5" />}
       title="Teams Directory"
       description="Operational teams structured within departments"
-      badge={
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
-          {teams.length}
-        </span>
-      }
       actions={
         <>
           <Button

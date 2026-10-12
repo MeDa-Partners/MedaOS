@@ -41,7 +41,6 @@ import {
   Network,
   FolderTree,
   Layers,
-  Terminal,
   Crown,
   Search,
   X,
@@ -490,26 +489,6 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               </SidebarGroupContent>
             </SidebarGroup>
           )}
-
-          {/* GROUP: DEVELOPER ARCHITECTURE */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Developer</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <Link href="/dev" onClick={onCloseMobile}>
-                    <SidebarMenuButton isActive={pathname.startsWith('/dev')}>
-                      <Terminal className="w-4 h-4 shrink-0 text-purple-600" />
-                      <span>Dev Catalog</span>
-                      <SidebarMenuBadge className="text-purple-700 bg-purple-50 border-purple-200">
-                        Admin
-                      </SidebarMenuBadge>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
         </SidebarContent>
 
         {/* BOTTOM: USER PROFILE & SESSION FOOTER (VERCEL STYLE) */}

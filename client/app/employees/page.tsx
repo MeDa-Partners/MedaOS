@@ -395,11 +395,6 @@ export default function EmployeesPage() {
       icon={<Users className="w-3.5 h-3.5" />}
       title="Employees Directory"
       description="Manage user credentials, multi-venture memberships, and section permissions"
-      badge={
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
-          {employees.length}
-        </span>
-      }
       actions={
         <>
           <Button

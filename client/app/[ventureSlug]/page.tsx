@@ -100,17 +100,6 @@ export default function VentureDashboardPage({ params }: VenturePageProps) {
       description="Venture overview and department workspaces"
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-[#71717a]">
-          <Link href="/" className="hover:text-[#09090b]">
-            Overview
-          </Link>
-          <span>/</span>
-          <span className="font-semibold text-[#09090b] flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{ventureName}</span>
-          </span>
-        </div>
 
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center text-[#71717a]">

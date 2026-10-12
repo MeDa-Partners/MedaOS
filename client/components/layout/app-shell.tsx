@@ -11,7 +11,6 @@ interface AppShellProps {
   children: React.ReactNode;
   title?: string;
   description?: string;
-  badge?: React.ReactNode;
   icon?: React.ReactNode;
   actions?: React.ReactNode;
   requiredSectionSlug?: string;
@@ -23,7 +22,6 @@ export function AppShell({
   children,
   title = '',
   description,
-  badge,
   icon,
   actions,
   requiredSectionSlug,
@@ -253,7 +251,6 @@ export function AppShell({
         <Header
           title={title}
           description={description}
-          badge={badge}
           icon={icon}
           actions={actions}
           onOpenMobile={() => setMobileSidebarOpen(true)}

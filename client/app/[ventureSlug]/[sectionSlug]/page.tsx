@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, use } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/context/auth-context';
@@ -137,18 +136,6 @@ export default function VentureSectionPage({ params }: SectionPageProps) {
       description={`Scoped to ${ventureName}`}
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-[#71717a]">
-          <Link href={`/${ventureSlug}`} className="hover:text-[#09090b] flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{ventureName}</span>
-          </Link>
-          <span>/</span>
-          <span className="font-semibold text-[#09090b] flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5" />
-            <span>{title}</span>
-          </span>
-        </div>
 
         {/* Loading State */}
         {loading ? (

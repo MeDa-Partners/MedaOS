@@ -12,7 +12,6 @@ import {
   RefreshCw,
   ExternalLink,
   Users2,
-  Terminal,
 } from 'lucide-react';
 import { FilterBar } from '@/components/ui/filter-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -74,11 +73,6 @@ export default function VenturesPage() {
       icon={<Building2 className="w-3.5 h-3.5" />}
       title="Ventures Directory"
       description="Active portfolio companies, business units, and venture brands"
-      badge={
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
-          {ventures.length}
-        </span>
-      }
       actions={
         <>
           <Button
@@ -102,32 +96,6 @@ export default function VenturesPage() {
       requireAdmin
     >
       <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Catalog Boundary Banner */}
-        <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
-              <Terminal className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div>
-              <span className="font-semibold text-[#09090b] flex items-center gap-1.5">
-                Venture Catalog Authority
-              </span>
-              <p className="text-[#71717a] mt-0.5">
-                Registering new ventures, editing metadata, or removing portfolio companies belongs exclusively to{' '}
-                <strong className="text-[#09090b] font-medium">Dev Admin</strong>. Operational access assignments are managed in Employee Management.
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/dev"
-            className="px-3 py-1.5 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1.5"
-          >
-            <span>Open Dev Admin (/dev)</span>
-            <ExternalLink className="w-3 h-3 text-[#71717a]" />
-          </Link>
-        </div>
 
         {/* Notification */}
         {error && (
@@ -161,7 +129,7 @@ export default function VenturesPage() {
             description={
               search
                 ? 'No ventures match your active search keyword.'
-                : 'Ventures are registered through Dev Admin at /dev.'
+                : 'No ventures registered.'
             }
           />
         ) : (

@@ -14,8 +14,6 @@ import {
   RefreshCw,
   Building2,
   Crown,
-  Terminal,
-  ExternalLink,
   Network,
 } from 'lucide-react';
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
@@ -142,11 +140,6 @@ export default function DepartmentsPage() {
       icon={<FolderTree className="w-3.5 h-3.5" />}
       title="Departments Directory"
       description="Organizational divisions structured across ventures"
-      badge={
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
-          {departments.length}
-        </span>
-      }
       actions={
         <>
           <Button
@@ -169,32 +162,6 @@ export default function DepartmentsPage() {
       }
     >
       <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Boundary Notice Banner */}
-        <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#09090b] text-white flex items-center justify-center shrink-0">
-              <Terminal className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div>
-              <span className="font-semibold text-[#09090b] flex items-center gap-1.5">
-                Catalog Architecture Boundary
-              </span>
-              <p className="text-[#71717a] mt-0.5">
-                Creating, modifying metadata, or deleting departments belongs exclusively to{' '}
-                <strong className="text-[#09090b] font-medium">Dev Admin</strong>. Operational leadership assignments and team configurations are managed here.
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/dev"
-            className="px-3 py-1.5 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-xs font-medium text-[#09090b] transition-colors shrink-0 flex items-center gap-1.5"
-          >
-            <span>Open Dev Admin (/dev)</span>
-            <ExternalLink className="w-3 h-3 text-[#71717a]" />
-          </Link>
-        </div>
 
         {/* Notifications */}
         {error && (
@@ -257,7 +224,7 @@ export default function DepartmentsPage() {
             description={
               search || selectedVentureFilter
                 ? 'No departments match your active search or venture filter.'
-                : 'Departments are registered through Dev Admin at /dev.'
+                : 'No departments configured in this venture.'
             }
           />
         ) : (
