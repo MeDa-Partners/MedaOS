@@ -19,7 +19,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
-  SidebarMenuBadge,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
@@ -328,17 +327,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
 
           {/* GROUP: DEPARTMENTS & SECTIONS HIERARCHY */}
           <SidebarGroup>
-            <SidebarGroupLabel
-              badge={
-                activeSections.length > 0 ? (
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-sm bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
-                    {activeSections.filter((s) => s.slug !== 'employees').length}
-                  </span>
-                ) : null
-              }
-            >
-              Departments
-            </SidebarGroupLabel>
+            <SidebarGroupLabel>Departments</SidebarGroupLabel>
 
             <SidebarGroupContent>
               {departmentGroups.length === 0 ? (
@@ -370,14 +359,11 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                             <span className="truncate">{group.departmentName}</span>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <SidebarMenuBadge>{group.sections.length}</SidebarMenuBadge>
-                            <ChevronDown
-                              className={`w-3 h-3 text-[#71717a] transition-transform duration-200 ${
-                                open ? 'rotate-180' : ''
-                              }`}
-                            />
-                          </div>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-[#71717a] transition-transform duration-200 shrink-0 ${
+                              open ? 'rotate-180' : ''
+                            }`}
+                          />
                         </SidebarMenuButton>
 
                         {/* Department Sections List (Indented Tree Rail) */}

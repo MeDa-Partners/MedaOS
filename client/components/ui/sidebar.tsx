@@ -179,14 +179,14 @@ export const SidebarMenuItem = forwardRef<HTMLLIElement, React.HTMLAttributes<HT
 SidebarMenuItem.displayName = 'SidebarMenuItem';
 
 // ===================== SIDEBAR MENU BUTTON =====================
-export interface SidebarMenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface SidebarMenuButtonProps extends React.HTMLAttributes<HTMLDivElement> {
   isActive?: boolean;
   asChild?: boolean;
   size?: 'default' | 'sm' | 'lg';
 }
 
-export const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
-  ({ className = '', isActive = false, size = 'default', children, ...props }, ref) => {
+export const SidebarMenuButton = forwardRef<HTMLDivElement, SidebarMenuButtonProps>(
+  ({ className = '', isActive = false, size = 'default', children, onKeyDown, ...props }, ref) => {
     const sizeClasses = {
       sm: 'px-2 py-1.5 text-[11px]',
       default: 'px-2.5 py-2 text-xs',
@@ -194,10 +194,17 @@ export const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButton
     }[size];
 
     return (
-      <button
+      <div
         ref={ref}
-        type="button"
+        role="button"
+        tabIndex={0}
         data-active={isActive}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.currentTarget.click();
+          }
+          onKeyDown?.(e);
+        }}
         className={`w-full ${sizeClasses} rounded-lg flex items-center gap-2.5 text-left font-medium transition-colors cursor-pointer select-none group ${
           isActive
             ? 'bg-[#09090b] text-white shadow-xs'
@@ -206,7 +213,7 @@ export const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButton
         {...props}
       >
         {children}
-      </button>
+      </div>
     );
   }
 );
@@ -241,14 +248,14 @@ export const SidebarMenuSubItem = forwardRef<HTMLLIElement, React.HTMLAttributes
 SidebarMenuSubItem.displayName = 'SidebarMenuSubItem';
 
 // ===================== SIDEBAR MENU SUB BUTTON =====================
-export interface SidebarMenuSubButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+export interface SidebarMenuSubButtonProps extends React.HTMLAttributes<HTMLDivElement> {
   isActive?: boolean;
 }
 
-export const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonProps>(
+export const SidebarMenuSubButton = forwardRef<HTMLDivElement, SidebarMenuSubButtonProps>(
   ({ className = '', isActive = false, children, ...props }, ref) => {
     return (
-      <a
+      <div
         ref={ref}
         data-active={isActive}
         className={`w-full px-2 py-1.5 text-xs rounded-md flex items-center gap-2 font-medium transition-colors cursor-pointer select-none ${
@@ -259,7 +266,7 @@ export const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSub
         {...props}
       >
         {children}
-      </a>
+      </div>
     );
   }
 );
