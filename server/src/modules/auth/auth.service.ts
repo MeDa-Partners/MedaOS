@@ -127,6 +127,8 @@ export class AuthService {
         .select({
           id: sections.id,
           departmentId: sections.departmentId,
+          departmentName: departments.name,
+          departmentSlug: departments.slug,
           name: sections.name,
           slug: sections.slug,
           status: sections.status,
@@ -146,6 +148,8 @@ export class AuthService {
         .map((s) => ({
           id: s.id,
           departmentId: s.departmentId,
+          departmentName: s.departmentName,
+          departmentSlug: s.departmentSlug,
           name: s.name,
           slug: s.slug,
           route: `/${v.slug}/${s.slug}`,
@@ -220,6 +224,8 @@ export class AuthService {
           ? deptActiveSections.map((s) => ({
               id: s.id,
               departmentId: s.departmentId,
+              departmentName: m.departmentName,
+              departmentSlug: m.departmentSlug,
               name: s.name,
               slug: s.slug,
               route: `/${m.ventureSlug}/${s.slug}`,
@@ -230,6 +236,8 @@ export class AuthService {
               .map((s) => ({
                 id: s.id,
                 departmentId: s.departmentId,
+                departmentName: m.departmentName,
+                departmentSlug: m.departmentSlug,
                 name: s.name,
                 slug: s.slug,
                 route: `/${m.ventureSlug}/${s.slug}`,
@@ -267,6 +275,8 @@ export class AuthService {
     const catalogSections: SafeSection[] = allActiveSections.map((s) => ({
       id: s.id,
       departmentId: s.departmentId,
+      departmentName: s.departmentName,
+      departmentSlug: s.departmentSlug,
       name: s.name,
       slug: s.slug,
       route: `/${s.slug}`,

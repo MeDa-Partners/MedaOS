@@ -26,6 +26,8 @@ export interface SafeTeam {
 export interface SafeSection {
   id: string;
   departmentId: string;
+  departmentName?: string;
+  departmentSlug?: string;
   name: string;
   slug: string;
   route: string;

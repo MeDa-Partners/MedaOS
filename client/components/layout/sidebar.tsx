@@ -1,18 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
+import { Section } from '@/lib/api';
+import {
+  Sidebar as SidebarRoot,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+  SidebarMenuBadge,
+  SidebarSeparator,
+} from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
   TrendingUp,
   Boxes,
+  Package,
   Target,
   Megaphone,
   Users2,
   Building2,
   ChevronDown,
+  ChevronsUpDown,
   LogOut,
   KeyRound,
   Check,
@@ -22,12 +42,20 @@ import {
   FolderTree,
   Layers,
   Terminal,
+  Crown,
 } from 'lucide-react';
 import { ChangePasswordModal } from '../modals/change-password-modal';
 
 interface SidebarProps {
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
+}
+
+interface DepartmentSectionGroup {
+  departmentId: string;
+  departmentName: string;
+  departmentSlug?: string;
+  sections: Section[];
 }
 
 export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
@@ -50,28 +78,75 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
 
   const [ventureMenuOpen, setVentureMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
 
-  // Map route slugs to icons
+  // Map route slugs to distinctive, refined icons
   const getSectionIcon = (slug: string) => {
     switch (slug) {
       case 'sales':
-        return <TrendingUp className="w-4 h-4 shrink-0" />;
+        return <TrendingUp className="w-3.5 h-3.5 shrink-0 text-emerald-600" />;
       case 'operations':
-        return <Boxes className="w-4 h-4 shrink-0" />;
+        return <Boxes className="w-3.5 h-3.5 shrink-0 text-blue-600" />;
       case 'orders':
-        return <Boxes className="w-4 h-4 shrink-0" />;
+        return <Package className="w-3.5 h-3.5 shrink-0 text-indigo-600" />;
       case 'nbd':
-        return <Target className="w-4 h-4 shrink-0" />;
+        return <Target className="w-3.5 h-3.5 shrink-0 text-amber-600" />;
       case 'marketing':
-        return <Megaphone className="w-4 h-4 shrink-0" />;
+        return <Megaphone className="w-3.5 h-3.5 shrink-0 text-pink-600" />;
       case 'employees':
-        return <Users2 className="w-4 h-4 shrink-0" />;
+        return <Users2 className="w-3.5 h-3.5 shrink-0 text-purple-600" />;
       default:
-        return <LayoutDashboard className="w-4 h-4 shrink-0" />;
+        return <Layers className="w-3.5 h-3.5 shrink-0 text-zinc-500" />;
     }
   };
 
-  // List of available ventures for the switcher
+  // Group sections by department
+  const departmentGroups = useMemo<DepartmentSectionGroup[]>(() => {
+    const groupsMap = new Map<string, DepartmentSectionGroup>();
+
+    // Exclude 'employees' since it has its own prominent management hub
+    const businessSections = activeSections.filter((s) => s.slug !== 'employees');
+
+    for (const section of businessSections) {
+      const deptId = section.departmentId || 'general';
+      const deptName =
+        section.departmentName ||
+        (activeDepartment && activeDepartment.id === section.departmentId
+          ? activeDepartment.name
+          : null) ||
+        'General';
+
+      if (!groupsMap.has(deptId)) {
+        groupsMap.set(deptId, {
+          departmentId: deptId,
+          departmentName: deptName,
+          departmentSlug: section.departmentSlug,
+          sections: [],
+        });
+      }
+
+      groupsMap.get(deptId)!.sections.push(section);
+    }
+
+    return Array.from(groupsMap.values());
+  }, [activeSections, activeDepartment]);
+
+  // Toggle department collapsible section
+  const toggleDepartment = (deptId: string) => {
+    setOpenDepartments((prev) => ({
+      ...prev,
+      [deptId]: prev[deptId] !== undefined ? !prev[deptId] : false,
+    }));
+  };
+
+  // Check if a department is open (default to true, always true if it contains active path)
+  const isDeptOpen = (group: DepartmentSectionGroup) => {
+    const containsActiveRoute = group.sections.some((s) => pathname.startsWith(s.route));
+    if (containsActiveRoute) return true;
+    return openDepartments[group.departmentId] ?? true;
+  };
+
+  // Available ventures for switcher
   const ventureOptions = isAdmin
     ? allVentures.length > 0
       ? allVentures
@@ -80,23 +155,11 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <div
-          onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs lg:hidden"
-        />
-      )}
-
-      <aside
-        className={`fixed lg:sticky top-0 left-0 z-40 h-screen w-64 bg-white border-r border-[#e4e4e7] flex flex-col justify-between transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Top: Branding, Venture Switcher, and Nav Links */}
-        <div className="flex flex-col min-h-0 flex-1 overflow-y-auto">
+      <SidebarRoot mobileOpen={mobileOpen} onCloseMobile={onCloseMobile}>
+        {/* TOP: BRAND & VENTURE SWITCHER */}
+        <SidebarHeader>
           {/* Logo / Brand Header */}
-          <div className="h-14 px-5 border-b border-[#f0f0f2] flex items-center justify-between shrink-0">
+          <div className="flex items-center justify-between px-1 pt-1 pb-2 border-b border-[#f0f0f2]">
             <Link
               href="/"
               className="flex items-center gap-2.5 group"
@@ -119,252 +182,308 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </Link>
           </div>
 
-          {/* Active Venture Switcher */}
-          <div className="p-3 border-b border-[#f0f0f2] shrink-0">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setVentureMenuOpen(!ventureMenuOpen)}
-                className="w-full px-3 py-2 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-left flex items-center justify-between transition-all group"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-5 h-5 rounded-md bg-[#e4e4e7] flex items-center justify-center text-[#18181b] shrink-0">
-                    <Building2 className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-[#a1a1aa] uppercase font-mono tracking-wider">
-                      Active Venture
-                    </span>
-                    <span className="text-xs font-medium text-[#18181b] truncate">
-                      {activeVenture ? activeVenture.name : 'Select Venture'}
-                    </span>
-                  </div>
+          {/* Active Venture Switcher (shadcn Team Switcher Pattern) */}
+          <div className="relative pt-1">
+            <button
+              type="button"
+              onClick={() => setVentureMenuOpen(!ventureMenuOpen)}
+              className="w-full p-2 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-left flex items-center justify-between transition-all group cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-6 h-6 rounded-md bg-[#09090b] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                  {activeVenture ? activeVenture.name.slice(0, 2).toUpperCase() : <Building2 className="w-3.5 h-3.5" />}
                 </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-[#71717a] transition-transform ${
-                    ventureMenuOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[9px] font-mono uppercase text-[#71717a] tracking-wider font-medium">
+                    Active Venture
+                  </span>
+                  <span className="text-xs font-semibold text-[#09090b] truncate">
+                    {activeVenture ? activeVenture.name : 'Select Venture'}
+                  </span>
+                </div>
+              </div>
+              <ChevronsUpDown className="w-3.5 h-3.5 text-[#71717a] shrink-0 group-hover:text-[#09090b] transition-colors" />
+            </button>
 
-              {/* Venture Dropdown Menu */}
-              {ventureMenuOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[#e4e4e7] rounded-lg shadow-lg py-1 animate-in fade-in zoom-in-95 duration-100 max-h-56 overflow-y-auto">
-                  <div className="px-3 py-1.5 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider border-b border-[#f0f0f2]">
-                    {isAdmin ? 'All Ventures (Admin)' : 'Assigned Ventures'}
+            {/* Dropdown Menu */}
+            {ventureMenuOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[#e4e4e7] rounded-lg shadow-lg py-1 animate-in fade-in zoom-in-95 duration-100 max-h-56 overflow-y-auto">
+                <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] uppercase tracking-wider border-b border-[#f0f0f2] flex items-center justify-between">
+                  <span>{isAdmin ? 'All Ventures (Admin)' : 'Assigned Ventures'}</span>
+                  <span className="text-[9px]">{ventureOptions.length}</span>
+                </div>
+
+                {ventureOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-[#a1a1aa] italic">
+                    No ventures assigned
                   </div>
-
-                  {ventureOptions.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-[#a1a1aa] italic">
-                      No ventures assigned
-                    </div>
-                  ) : (
-                    ventureOptions.map((v) => {
-                      const isSelected = activeVenture?.id === v.id;
-                      return (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveVentureId(v.id);
-                            setVentureMenuOpen(false);
-                          }}
-                          className={`w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-[#f4f4f5] transition-colors ${
-                            isSelected
-                              ? 'text-[#09090b] font-medium bg-[#fafafa]'
-                              : 'text-[#52525b]'
-                          }`}
-                        >
+                ) : (
+                  ventureOptions.map((v) => {
+                    const isSelected = activeVenture?.id === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveVentureId(v.id);
+                          setVentureMenuOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-[#f4f4f5] transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'text-[#09090b] font-medium bg-[#fafafa]'
+                            : 'text-[#52525b]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
                           <span className="truncate">{v.name}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#09090b]" />}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[#09090b] shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
 
-            {/* User Department & Team Badge in Active Venture */}
-            <div className="mt-2 px-1 space-y-1 text-[11px] text-[#71717a]">
-              <div className="flex items-center justify-between">
-                <span>Department</span>
-                <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[120px]">
-                  {isAdmin ? 'System-wide' : activeDepartment?.name || 'Unassigned'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Team</span>
-                <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[120px]">
-                  {isAdmin ? 'Global Admin' : activeTeam?.name || 'Unassigned'}
-                </span>
-              </div>
+            {/* Active Venture Context Pill */}
+            <div className="mt-2 px-1 text-[11px] text-[#71717a] flex items-center justify-between">
+              <span className="font-mono text-[10px] text-[#a1a1aa] uppercase tracking-wider">
+                Scope
+              </span>
+              <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[150px] text-[10px]">
+                {isAdmin
+                  ? 'Global Admin'
+                  : isDepartmentHead
+                  ? `Head • ${activeDepartment?.name || 'Dept'}`
+                  : isTeamHead
+                  ? `Lead • ${activeTeam?.name || 'Team'}`
+                  : activeDepartment?.name || 'Assigned'}
+              </span>
             </div>
           </div>
+        </SidebarHeader>
 
-          {/* Navigation Links */}
-          <nav className="p-3 space-y-1">
-            <div className="px-2 py-1 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider">
-              Navigation
-            </div>
-
-            {/* Dashboard / Home */}
-            <Link
-              href="/"
-              onClick={onCloseMobile}
-              className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                pathname === '/'
-                  ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                  : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 shrink-0" />
-              <span>Overview</span>
-            </Link>
-
-            {/* Venture Business Sections (filtered by activeSections) */}
-            {activeSections
-              .filter((s) => s.slug !== 'employees')
-              .map((section) => {
-                const isActive = pathname.startsWith(section.route);
-                return (
-                  <Link
-                    key={section.id}
-                    href={section.route}
-                    onClick={onCloseMobile}
-                    className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                      isActive
-                        ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                        : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                    }`}
-                  >
-                    {getSectionIcon(section.slug)}
-                    <span className="capitalize">{section.name}</span>
+        {/* MIDDLE: SCROLLABLE NAVIGATION CONTENT */}
+        <SidebarContent>
+          {/* GROUP: PLATFORM OVERVIEW */}
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <Link href="/" onClick={onCloseMobile}>
+                    <SidebarMenuButton isActive={pathname === '/'}>
+                      <LayoutDashboard className="w-4 h-4 shrink-0" />
+                      <span>Overview</span>
+                    </SidebarMenuButton>
                   </Link>
-                );
-              })}
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-            {/* Separate Management Areas */}
-            {(hasEmployeeManagementAccess || isAdmin || isDepartmentHead || isTeamHead) && (
-              <div className="pt-3 px-2 py-1 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider">
-                Management
-              </div>
-            )}
-
-            {/* Department Management: Admin & Department Heads */}
-            {(isAdmin || isDepartmentHead) && (
-              <Link
-                href="/departments"
-                onClick={onCloseMobile}
-                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/departments')
-                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                }`}
-              >
-                <FolderTree className="w-4 h-4 shrink-0" />
-                <span>Departments</span>
-              </Link>
-            )}
-
-            {/* Team Management: Admin, Department Heads, and Team Heads */}
-            {(isAdmin || isDepartmentHead || isTeamHead) && (
-              <Link
-                href="/teams"
-                onClick={onCloseMobile}
-                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/teams')
-                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                }`}
-              >
-                <Network className="w-4 h-4 shrink-0" />
-                <span>Teams</span>
-              </Link>
-            )}
-
-            {/* Section Management: Admin & Department Heads */}
-            {(isAdmin || isDepartmentHead) && (
-              <Link
-                href="/sections"
-                onClick={onCloseMobile}
-                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/sections')
-                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                }`}
-              >
-                <Layers className="w-4 h-4 shrink-0" />
-                <span>Sections</span>
-              </Link>
-            )}
-
-            {/* Venture Management: Admin ONLY */}
-            {isAdmin && (
-              <Link
-                href="/ventures"
-                onClick={onCloseMobile}
-                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/ventures')
-                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                }`}
-              >
-                <Building2 className="w-4 h-4 shrink-0" />
-                <span>Ventures</span>
-              </Link>
-            )}
-
-            {/* Employee Management: available to Admin, Department Heads, and Team Heads */}
-            {hasEmployeeManagementAccess && (
-              <Link
-                href="/employees"
-                onClick={onCloseMobile}
-                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/employees')
-                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
-                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-                }`}
-              >
-                <Users2 className="w-4 h-4 shrink-0" />
-                <span>Employees</span>
-              </Link>
-            )}
-
-            {/* Developer Architecture Area */}
-            <div className="pt-3 px-2 py-1 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider">
-              Developer Area
-            </div>
-            <Link
-              href="/dev"
-              onClick={onCloseMobile}
-              className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                pathname.startsWith('/dev')
-                  ? 'bg-[#18181b] text-white font-medium shadow-xs'
-                  : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
-              }`}
+          {/* GROUP: DEPARTMENTS & SECTIONS HIERARCHY */}
+          <SidebarGroup>
+            <SidebarGroupLabel
+              badge={
+                activeSections.length > 0 ? (
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-sm bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
+                    {activeSections.filter((s) => s.slug !== 'employees').length}
+                  </span>
+                ) : null
+              }
             >
-              <Terminal className="w-4 h-4 shrink-0 text-purple-600" />
-              <span>Dev Catalog</span>
-            </Link>
-          </nav>
-        </div>
+              Departments
+            </SidebarGroupLabel>
 
-        {/* Bottom User Area */}
-        <div className="p-3 border-t border-[#f0f0f2] bg-[#fafafa] shrink-0">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-[#18181b] text-white text-xs font-semibold flex items-center justify-center shrink-0">
+            <SidebarGroupContent>
+              {departmentGroups.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-[#71717a] bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-center">
+                  <span>No sections enabled in this venture.</span>
+                </div>
+              ) : (
+                <SidebarMenu>
+                  {departmentGroups.map((group) => {
+                    const open = isDeptOpen(group);
+                    const containsActive = group.sections.some((s) =>
+                      pathname.startsWith(s.route)
+                    );
+
+                    return (
+                      <SidebarMenuItem key={group.departmentId}>
+                        {/* Department Header / Accordion Trigger */}
+                        <SidebarMenuButton
+                          size="sm"
+                          onClick={() => toggleDepartment(group.departmentId)}
+                          className={`justify-between ${
+                            containsActive
+                              ? 'text-[#09090b] font-semibold bg-[#fafafa]'
+                              : 'text-[#3f3f46]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FolderTree className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                            <span className="truncate">{group.departmentName}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <SidebarMenuBadge>{group.sections.length}</SidebarMenuBadge>
+                            <ChevronDown
+                              className={`w-3 h-3 text-[#71717a] transition-transform duration-200 ${
+                                open ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </div>
+                        </SidebarMenuButton>
+
+                        {/* Department Sections List (Indented Tree Rail) */}
+                        {open && (
+                          <SidebarMenuSub>
+                            {group.sections.map((section) => {
+                              const isActive = pathname.startsWith(section.route);
+
+                              return (
+                                <SidebarMenuSubItem key={section.id}>
+                                  <Link
+                                    href={section.route}
+                                    onClick={onCloseMobile}
+                                    className="block"
+                                  >
+                                    <SidebarMenuSubButton isActive={isActive}>
+                                      {getSectionIcon(section.slug)}
+                                      <span className="truncate capitalize">
+                                        {section.name}
+                                      </span>
+                                      {isActive && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#09090b] ml-auto shrink-0" />
+                                      )}
+                                    </SidebarMenuSubButton>
+                                  </Link>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {/* GROUP: MANAGEMENT (Admins, Department Heads, Team Heads) */}
+          {(hasEmployeeManagementAccess || isAdmin || isDepartmentHead || isTeamHead) && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Management</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {/* Employees */}
+                  {hasEmployeeManagementAccess && (
+                    <SidebarMenuItem>
+                      <Link href="/employees" onClick={onCloseMobile}>
+                        <SidebarMenuButton isActive={pathname.startsWith('/employees')}>
+                          <Users2 className="w-4 h-4 shrink-0" />
+                          <span>Employees</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+
+                  {/* Departments */}
+                  {(isAdmin || isDepartmentHead) && (
+                    <SidebarMenuItem>
+                      <Link href="/departments" onClick={onCloseMobile}>
+                        <SidebarMenuButton isActive={pathname.startsWith('/departments')}>
+                          <FolderTree className="w-4 h-4 shrink-0" />
+                          <span>Departments</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+
+                  {/* Teams */}
+                  {(isAdmin || isDepartmentHead || isTeamHead) && (
+                    <SidebarMenuItem>
+                      <Link href="/teams" onClick={onCloseMobile}>
+                        <SidebarMenuButton isActive={pathname.startsWith('/teams')}>
+                          <Network className="w-4 h-4 shrink-0" />
+                          <span>Teams</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+
+                  {/* Sections */}
+                  {(isAdmin || isDepartmentHead) && (
+                    <SidebarMenuItem>
+                      <Link href="/sections" onClick={onCloseMobile}>
+                        <SidebarMenuButton isActive={pathname.startsWith('/sections')}>
+                          <Layers className="w-4 h-4 shrink-0" />
+                          <span>Sections</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+
+                  {/* Ventures (Admin Only) */}
+                  {isAdmin && (
+                    <SidebarMenuItem>
+                      <Link href="/ventures" onClick={onCloseMobile}>
+                        <SidebarMenuButton isActive={pathname.startsWith('/ventures')}>
+                          <Building2 className="w-4 h-4 shrink-0" />
+                          <span>Ventures</span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          {/* GROUP: DEVELOPER ARCHITECTURE */}
+          <SidebarGroup>
+            <SidebarGroupLabel>Developer</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <Link href="/dev" onClick={onCloseMobile}>
+                    <SidebarMenuButton isActive={pathname.startsWith('/dev')}>
+                      <Terminal className="w-4 h-4 shrink-0 text-purple-600" />
+                      <span>Dev Catalog</span>
+                      <SidebarMenuBadge className="text-purple-700 bg-purple-50 border-purple-200">
+                        Admin
+                      </SidebarMenuBadge>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        {/* BOTTOM: USER PROFILE & SESSION FOOTER */}
+        <SidebarFooter>
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-[#18181b] text-white text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">
                 {user?.name ? user.name.slice(0, 2).toUpperCase() : <UserIcon className="w-3.5 h-3.5" />}
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-[#09090b] truncate">
+                  <span className="text-xs font-semibold text-[#09090b] truncate">
                     {user?.name || 'User'}
                   </span>
                   {isAdmin && (
                     <span title="Global Administrator">
                       <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    </span>
+                  )}
+                  {isDepartmentHead && !isAdmin && (
+                    <span title="Department Head">
+                      <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     </span>
                   )}
                 </div>
@@ -375,12 +494,14 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 pt-1">
+          <SidebarSeparator className="my-1" />
+
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setChangePasswordOpen(true)}
               title="Change Password"
-              className="flex-1 px-2 py-1.5 text-[11px] text-[#52525b] hover:text-[#09090b] hover:bg-white border border-transparent hover:border-[#e4e4e7] rounded-md transition-all flex items-center justify-center gap-1.5"
+              className="flex-1 px-2 py-1.5 text-[11px] font-medium text-[#52525b] hover:text-[#09090b] hover:bg-white border border-transparent hover:border-[#e4e4e7] rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <KeyRound className="w-3.5 h-3.5 text-[#71717a]" />
               <span>Password</span>
@@ -390,14 +511,14 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               type="button"
               onClick={logout}
               title="Sign Out"
-              className="px-2.5 py-1.5 text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-md transition-all flex items-center justify-center gap-1"
+              className="px-2.5 py-1.5 text-[11px] font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign out</span>
             </button>
           </div>
-        </div>
-      </aside>
+        </SidebarFooter>
+      </SidebarRoot>
 
       <ChangePasswordModal
         isOpen={changePasswordOpen}
