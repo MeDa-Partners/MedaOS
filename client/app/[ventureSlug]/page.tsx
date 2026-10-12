@@ -94,7 +94,11 @@ export default function VentureDashboardPage({ params }: VenturePageProps) {
   const ventureName = venture?.name || formatTitle(ventureSlug);
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Building2 className="w-3.5 h-3.5" />}
+      title={`${ventureName} Workspace`}
+      description="Venture overview and department workspaces"
+    >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-[#71717a]">

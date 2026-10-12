@@ -11,6 +11,7 @@ import {
   Truck,
   CheckCircle2,
   Clock,
+  Package,
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -68,6 +69,7 @@ export default function OrdersPage() {
 
   return (
     <AppShell
+      icon={<Package className="w-3.5 h-3.5" />}
       title="Orders Workspace"
       description="Fulfillment tracking, order dispatching, and venture inventory orders"
       requiredSectionSlug="orders"

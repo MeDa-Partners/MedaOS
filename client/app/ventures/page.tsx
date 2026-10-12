@@ -14,7 +14,6 @@ import {
   Users2,
   Terminal,
 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar } from '@/components/ui/filter-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,34 +70,38 @@ export default function VenturesPage() {
   );
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Building2 className="w-3.5 h-3.5" />}
+      title="Ventures Directory"
+      description="Active portfolio companies, business units, and venture brands"
+      badge={
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
+          {ventures.length}
+        </span>
+      }
+      actions={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={reloadData}
+            disabled={loading}
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Link href="/employees">
+            <Button size="sm">
+              <Users2 className="w-3.5 h-3.5" />
+              <span>Assign Employees</span>
+            </Button>
+          </Link>
+        </>
+      }
+      requireAdmin
+    >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          icon={<Building2 className="w-4 h-4" />}
-          title="Ventures Directory"
-          description="Active portfolio companies, business units, and venture brands operating under MeDa Partners OS."
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={reloadData}
-                disabled={loading}
-                title="Refresh"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
-              <Link href="/employees">
-                <Button size="sm">
-                  <Users2 className="w-3.5 h-3.5" />
-                  <span>Assign Employees</span>
-                </Button>
-              </Link>
-            </>
-          }
-        />
 
         {/* Catalog Boundary Banner */}
         <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">

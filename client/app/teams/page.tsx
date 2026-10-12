@@ -19,7 +19,6 @@ import {
   Edit2,
   Users2,
 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -250,40 +249,43 @@ export default function TeamsPage() {
   });
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Network className="w-3.5 h-3.5" />}
+      title="Teams Directory"
+      description="Operational teams structured within departments"
+      badge={
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
+          {teams.length}
+        </span>
+      }
+      actions={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={reloadData}
+            disabled={loading}
+            title="Refresh list"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          {(isAdmin || isDepartmentHead) && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setIsCreateOpen(true);
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Team</span>
+            </Button>
+          )}
+        </>
+      }
+    >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <PageHeader
-          icon={<Network className="w-4 h-4" />}
-          title="Teams Directory"
-          description="Operational teams structured within departments. Each team operates under a designated Team Head."
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={reloadData}
-                disabled={loading}
-                title="Refresh list"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
-              {(isAdmin || isDepartmentHead) && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setError(null);
-                    setIsCreateOpen(true);
-                  }}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Team</span>
-                </Button>
-              )}
-            </>
-          }
-        />
 
         {/* Notifications */}
         {error && (

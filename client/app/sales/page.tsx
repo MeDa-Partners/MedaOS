@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Users,
   CheckCircle2,
+  TrendingUp,
 } from 'lucide-react';
 
 export default function SalesPage() {
@@ -70,6 +71,7 @@ export default function SalesPage() {
 
   return (
     <AppShell
+      icon={<TrendingUp className="w-3.5 h-3.5" />}
       title="Sales Workspace"
       description="Multi-venture sales performance and pipeline"
       requiredSectionSlug="sales"

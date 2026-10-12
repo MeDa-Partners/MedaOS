@@ -15,7 +15,6 @@ import {
   Users2,
   Terminal,
 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,34 +88,37 @@ export default function SectionsPage() {
   });
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Layers className="w-3.5 h-3.5" />}
+      title="Sections Directory"
+      description="Browse registered functional sections and access boundaries"
+      badge={
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
+          {sections.length}
+        </span>
+      }
+      actions={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={reloadData}
+            disabled={loading}
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Link href="/employees">
+            <Button size="sm">
+              <Users2 className="w-3.5 h-3.5" />
+              <span>Assign Section Permissions</span>
+            </Button>
+          </Link>
+        </>
+      }
+    >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          icon={<Layers className="w-4 h-4" />}
-          title="Sections Directory"
-          description="Browse registered functional sections and access boundaries. Assign personnel permissions via Employee Management."
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={reloadData}
-                disabled={loading}
-                title="Refresh"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
-              <Link href="/employees">
-                <Button size="sm">
-                  <Users2 className="w-3.5 h-3.5" />
-                  <span>Assign Section Permissions</span>
-                </Button>
-              </Link>
-            </>
-          }
-        />
 
         {/* Boundary Notice Banner */}
         <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">

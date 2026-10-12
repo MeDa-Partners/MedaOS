@@ -61,6 +61,7 @@ export default function ManagementPage() {
 
   return (
     <AppShell
+      icon={<Briefcase className="w-3.5 h-3.5" />}
       title="Management Workspace"
       description="Executive cross-venture oversight and organizational governance"
       requiredSectionSlug="management"

@@ -62,6 +62,7 @@ export default function OperationsPage() {
 
   return (
     <AppShell
+      icon={<Boxes className="w-3.5 h-3.5" />}
       title="Operations Workspace"
       description="Fulfillment pipelines, inventory health, and logistics management"
       requiredSectionSlug="operations"

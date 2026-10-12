@@ -33,7 +33,6 @@ import {
   Layers,
   ShieldCheck,
 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/page-header';
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -392,57 +391,61 @@ export default function EmployeesPage() {
     : [];
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Users className="w-3.5 h-3.5" />}
+      title="Employees Directory"
+      description="Manage user credentials, multi-venture memberships, and section permissions"
+      badge={
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f4f4f5] text-[#71717a] border border-[#e4e4e7]">
+          {employees.length}
+        </span>
+      }
+      actions={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={reloadData}
+            disabled={loading}
+            title="Refresh list"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              let prefillVenture = '';
+              let prefillDept = '';
+              if (!isAdmin && departmentsLed.length > 0) {
+                const myDept = availableDepartments.find((d) => d.id === departmentsLed[0]);
+                if (myDept) {
+                  prefillVenture = myDept.ventureId;
+                  prefillDept = myDept.id;
+                }
+              }
+              setCreateForm({
+                name: '',
+                email: '',
+                password: '',
+                ventureId: prefillVenture,
+                departmentId: prefillDept,
+                teamId: '',
+                sectionIds: [],
+                status: 'active',
+              });
+              setIsCreateOpen(true);
+            }}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Add Employee</span>
+          </Button>
+        </>
+      }
+      requireEmployeeManagement
+    >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <PageHeader
-          icon={<Users className="w-4 h-4" />}
-          title="Employees Directory"
-          description="Manage user credentials, multi-venture memberships, organizational reporting hierarchies, and section permissions."
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={reloadData}
-                disabled={loading}
-                title="Refresh list"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setError(null);
-                  let prefillVenture = '';
-                  let prefillDept = '';
-                  if (!isAdmin && departmentsLed.length > 0) {
-                    const myDept = availableDepartments.find((d) => d.id === departmentsLed[0]);
-                    if (myDept) {
-                      prefillVenture = myDept.ventureId;
-                      prefillDept = myDept.id;
-                    }
-                  }
-                  setCreateForm({
-                    name: '',
-                    email: '',
-                    password: '',
-                    ventureId: prefillVenture,
-                    departmentId: prefillDept,
-                    teamId: '',
-                    sectionIds: [],
-                    status: 'active',
-                  });
-                  setIsCreateOpen(true);
-                }}
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Add Employee</span>
-              </Button>
-            </>
-          }
-        />
 
         {/* Notifications */}
         {error && (

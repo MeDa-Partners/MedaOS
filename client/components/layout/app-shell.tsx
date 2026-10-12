@@ -11,6 +11,9 @@ interface AppShellProps {
   children: React.ReactNode;
   title?: string;
   description?: string;
+  badge?: React.ReactNode;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
   requiredSectionSlug?: string;
   requireAdmin?: boolean;
   requireEmployeeManagement?: boolean;
@@ -20,6 +23,9 @@ export function AppShell({
   children,
   title = '',
   description,
+  badge,
+  icon,
+  actions,
   requiredSectionSlug,
   requireAdmin = false,
   requireEmployeeManagement = false,
@@ -247,6 +253,9 @@ export function AppShell({
         <Header
           title={title}
           description={description}
+          badge={badge}
+          icon={icon}
+          actions={actions}
           onOpenMobile={() => setMobileSidebarOpen(true)}
         />
         <main className="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-150">

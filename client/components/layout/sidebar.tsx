@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
@@ -43,6 +43,9 @@ import {
   Layers,
   Terminal,
   Crown,
+  Search,
+  X,
+  Bell,
 } from 'lucide-react';
 import { ChangePasswordModal } from '../modals/change-password-modal';
 
@@ -66,7 +69,6 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     allVentures,
     activeVenture,
     activeDepartment,
-    activeTeam,
     activeSections,
     setActiveVentureId,
     isAdmin,
@@ -79,6 +81,23 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const [ventureMenuOpen, setVentureMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
+  const [findQuery, setFindQuery] = useState('');
+  const findInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut: Press 'f' or '/' to focus quick find
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === 'f' || e.key === 'F') &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault();
+        findInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Map route slugs to distinctive, refined icons
   const getSectionIcon = (slug: string) => {
@@ -103,8 +122,6 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   // Group sections by department
   const departmentGroups = useMemo<DepartmentSectionGroup[]>(() => {
     const groupsMap = new Map<string, DepartmentSectionGroup>();
-
-    // Exclude 'employees' since it has its own prominent management hub
     const businessSections = activeSections.filter((s) => s.slug !== 'employees');
 
     for (const section of businessSections) {
@@ -131,6 +148,26 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     return Array.from(groupsMap.values());
   }, [activeSections, activeDepartment]);
 
+  // Filter groups in real time based on Find input
+  const filteredDepartmentGroups = useMemo(() => {
+    if (!findQuery.trim()) return departmentGroups;
+    const q = findQuery.toLowerCase().trim();
+
+    return departmentGroups
+      .map((g) => {
+        const matchesDept = g.departmentName.toLowerCase().includes(q);
+        const matchingSections = g.sections.filter(
+          (s) => s.name.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q)
+        );
+        if (matchesDept) return g;
+        if (matchingSections.length > 0) {
+          return { ...g, sections: matchingSections };
+        }
+        return null;
+      })
+      .filter((g): g is DepartmentSectionGroup => g !== null);
+  }, [departmentGroups, findQuery]);
+
   // Toggle department collapsible section
   const toggleDepartment = (deptId: string) => {
     setOpenDepartments((prev) => ({
@@ -139,8 +176,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     }));
   };
 
-  // Check if a department is open (default to true, always true if it contains active path)
+  // Check if a department is open (default to true or if filtered)
   const isDeptOpen = (group: DepartmentSectionGroup) => {
+    if (findQuery.trim()) return true;
     const containsActiveRoute = group.sections.some((s) => pathname.startsWith(s.route));
     if (containsActiveRoute) return true;
     return openDepartments[group.departmentId] ?? true;
@@ -156,7 +194,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   return (
     <>
       <SidebarRoot mobileOpen={mobileOpen} onCloseMobile={onCloseMobile}>
-        {/* TOP: BRAND & VENTURE SWITCHER */}
+        {/* TOP: BRAND & VENTURE SWITCHER (VERCEL STYLE) */}
         <SidebarHeader>
           {/* Logo / Brand Header */}
           <div className="flex items-center justify-between px-1 pt-1 pb-2 border-b border-[#f0f0f2]">
@@ -182,7 +220,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </Link>
           </div>
 
-          {/* Active Venture Switcher (shadcn Team Switcher Pattern) */}
+          {/* Vercel-style Account / Venture Switcher */}
           <div className="relative pt-1">
             <button
               type="button"
@@ -190,15 +228,15 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               className="w-full p-2 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-left flex items-center justify-between transition-all group cursor-pointer shadow-2xs"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-6 h-6 rounded-md bg-[#09090b] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
-                  {activeVenture ? activeVenture.name.slice(0, 2).toUpperCase() : <Building2 className="w-3.5 h-3.5" />}
+                <div className="w-6 h-6 rounded-full bg-linear-to-tr from-purple-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-xs">
+                  {activeVenture ? activeVenture.name.slice(0, 2).toUpperCase() : 'M'}
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[9px] font-mono uppercase text-[#71717a] tracking-wider font-medium">
-                    Active Venture
-                  </span>
-                  <span className="text-xs font-semibold text-[#09090b] truncate">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-xs font-semibold text-[#09090b] truncate max-w-[110px]">
                     {activeVenture ? activeVenture.name : 'Select Venture'}
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-600 border border-zinc-200 shrink-0">
+                    {isAdmin ? 'Admin' : isDepartmentHead ? 'Head' : 'Member'}
                   </span>
                 </div>
               </div>
@@ -245,22 +283,32 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                 )}
               </div>
             )}
+          </div>
 
-            {/* Active Venture Context Pill */}
-            <div className="mt-2 px-1 text-[11px] text-[#71717a] flex items-center justify-between">
-              <span className="font-mono text-[10px] text-[#a1a1aa] uppercase tracking-wider">
-                Scope
-              </span>
-              <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[150px] text-[10px]">
-                {isAdmin
-                  ? 'Global Admin'
-                  : isDepartmentHead
-                  ? `Head • ${activeDepartment?.name || 'Dept'}`
-                  : isTeamHead
-                  ? `Lead • ${activeTeam?.name || 'Team'}`
-                  : activeDepartment?.name || 'Assigned'}
-              </span>
-            </div>
+          {/* Vercel-style "Find" Quick Search Box with [F] badge */}
+          <div className="relative mt-1">
+            <Search className="w-3.5 h-3.5 text-[#a1a1aa] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              ref={findInputRef}
+              type="text"
+              value={findQuery}
+              onChange={(e) => setFindQuery(e.target.value)}
+              placeholder="Find"
+              className="w-full h-8 pl-8 pr-7 text-xs bg-[#fafafa] hover:bg-[#f4f4f5] focus:bg-white border border-[#e4e4e7] rounded-lg text-[#09090b] placeholder:text-[#a1a1aa] focus:outline-hidden focus:ring-1 focus:ring-[#09090b] transition-all"
+            />
+            {findQuery ? (
+              <button
+                type="button"
+                onClick={() => setFindQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#a1a1aa] hover:text-[#09090b] cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            ) : (
+              <kbd className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9px] text-[#a1a1aa] bg-white border border-[#e4e4e7] px-1 py-0.2 rounded shadow-2xs pointer-events-none">
+                F
+              </kbd>
+            )}
           </div>
         </SidebarHeader>
 
@@ -298,13 +346,13 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             </SidebarGroupLabel>
 
             <SidebarGroupContent>
-              {departmentGroups.length === 0 ? (
+              {filteredDepartmentGroups.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-[#71717a] bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-center">
-                  <span>No sections enabled in this venture.</span>
+                  <span>{findQuery ? 'No matching sections found.' : 'No sections enabled in this venture.'}</span>
                 </div>
               ) : (
                 <SidebarMenu>
-                  {departmentGroups.map((group) => {
+                  {filteredDepartmentGroups.map((group) => {
                     const open = isDeptOpen(group);
                     const containsActive = group.sections.some((s) =>
                       pathname.startsWith(s.route)
@@ -464,7 +512,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           </SidebarGroup>
         </SidebarContent>
 
-        {/* BOTTOM: USER PROFILE & SESSION FOOTER */}
+        {/* BOTTOM: USER PROFILE & SESSION FOOTER (VERCEL STYLE) */}
         <SidebarFooter>
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -487,10 +535,16 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-[#71717a] truncate">
+                <span className="text-[10px] text-[#71717a] truncate font-mono">
                   {user?.email}
                 </span>
               </div>
+            </div>
+
+            {/* Notification bell icon (matching Vercel's bottom status bell) */}
+            <div className="relative p-1.5 text-[#71717a] hover:text-[#09090b] hover:bg-white rounded-md transition-colors">
+              <Bell className="w-3.5 h-3.5" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute top-1 right-1" />
             </div>
           </div>
 

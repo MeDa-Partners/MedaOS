@@ -131,7 +131,11 @@ export default function VentureSectionPage({ params }: SectionPageProps) {
   const ventureName = formatTitle(ventureSlug);
 
   return (
-    <AppShell>
+    <AppShell
+      icon={<Layers className="w-3.5 h-3.5" />}
+      title={`${title} Workspace`}
+      description={`Scoped to ${ventureName}`}
+    >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Navigation Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-[#71717a]">

@@ -62,6 +62,7 @@ export default function NbdPage() {
 
   return (
     <AppShell
+      icon={<Target className="w-3.5 h-3.5" />}
       title="NBD Workspace"
       description="New Business Development and venture expansion pipelines"
       requiredSectionSlug="nbd"
