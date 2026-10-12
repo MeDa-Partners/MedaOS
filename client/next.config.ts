@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* Direct connection via NEXT_PUBLIC_API_URL */
+  allowedDevOrigins: ["192.168.29.64"],
 };
 
 export default nextConfig;

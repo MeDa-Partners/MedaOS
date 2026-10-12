@@ -14,6 +14,8 @@ import { usersRoutes } from './modules/users/users.routes';
 import { teamsRoutes } from './modules/teams/teams.routes';
 import { venturesRoutes } from './modules/ventures/ventures.routes';
 import { sectionsRoutes } from './modules/sections/sections.routes';
+import { departmentsRoutes } from './modules/departments/departments.routes';
+import { devRoutes } from './modules/dev/dev.routes';
 
 export function createApp(): Express {
   const app: Express = express();
@@ -42,6 +44,10 @@ export function createApp(): Express {
   const isOriginAllowed = (origin: string): boolean => {
     const cleanOrigin = origin.replace(/\/+$/, '');
     if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes('*')) {
+      return true;
+    }
+    // Allow local network IP addresses (e.g. 192.168.x.x, 10.x.x.x, 172.16-31.x.x) on any port
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(cleanOrigin)) {
       return true;
     }
     // Allow any Vercel deployment (e.g. meda-os.vercel.app or branch preview URLs)
@@ -102,9 +108,11 @@ export function createApp(): Express {
   apiRouter.use('/auth', authRoutes);
   apiRouter.use('/users', usersRoutes);
   apiRouter.use('/employees', usersRoutes);
+  apiRouter.use('/departments', departmentsRoutes);
   apiRouter.use('/teams', teamsRoutes);
   apiRouter.use('/ventures', venturesRoutes);
   apiRouter.use('/sections', sectionsRoutes);
+  apiRouter.use('/dev', devRoutes);
 
   // Mount at standard /api/v1 prefix
   app.use('/api/v1', apiRouter);
@@ -113,9 +121,11 @@ export function createApp(): Express {
   app.use('/auth', authRoutes);
   app.use('/users', usersRoutes);
   app.use('/employees', usersRoutes);
+  app.use('/departments', departmentsRoutes);
   app.use('/teams', teamsRoutes);
   app.use('/ventures', venturesRoutes);
   app.use('/sections', sectionsRoutes);
+  app.use('/dev', devRoutes);
 
   // 8. 404 Catch-All Route
   app.use((req: Request, _res: Response, next: NextFunction) => {

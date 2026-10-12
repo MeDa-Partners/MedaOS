@@ -11,7 +11,6 @@ import {
   Target,
   Megaphone,
   Users2,
-  FolderGit2,
   Building2,
   ChevronDown,
   LogOut,
@@ -20,6 +19,9 @@ import {
   User as UserIcon,
   ShieldCheck,
   Network,
+  FolderTree,
+  Layers,
+  Terminal,
 } from 'lucide-react';
 import { ChangePasswordModal } from '../modals/change-password-modal';
 
@@ -35,10 +37,13 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     ventures,
     allVentures,
     activeVenture,
+    activeDepartment,
     activeTeam,
     activeSections,
     setActiveVentureId,
     isAdmin,
+    isDepartmentHead,
+    isTeamHead,
     hasEmployeeManagementAccess,
     logout,
   } = useAuth();
@@ -180,12 +185,20 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               )}
             </div>
 
-            {/* User Team Badge in Active Venture */}
-            <div className="mt-2 px-1 flex items-center justify-between text-[11px] text-[#71717a]">
-              <span>Team in Venture</span>
-              <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[120px]">
-                {isAdmin ? 'Administration' : activeTeam?.name || 'Unassigned'}
-              </span>
+            {/* User Department & Team Badge in Active Venture */}
+            <div className="mt-2 px-1 space-y-1 text-[11px] text-[#71717a]">
+              <div className="flex items-center justify-between">
+                <span>Department</span>
+                <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[120px]">
+                  {isAdmin ? 'System-wide' : activeDepartment?.name || 'Unassigned'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Team</span>
+                <span className="font-medium text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded-sm border border-[#e4e4e7] truncate max-w-[120px]">
+                  {isAdmin ? 'Global Admin' : activeTeam?.name || 'Unassigned'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -232,30 +245,30 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               })}
 
             {/* Separate Management Areas */}
-            {(hasEmployeeManagementAccess || isAdmin) && (
+            {(hasEmployeeManagementAccess || isAdmin || isDepartmentHead || isTeamHead) && (
               <div className="pt-3 px-2 py-1 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider">
                 Management
               </div>
             )}
 
-            {/* Employee Management: available to Admin and users with employees access */}
-            {hasEmployeeManagementAccess && (
+            {/* Department Management: Admin & Department Heads */}
+            {(isAdmin || isDepartmentHead) && (
               <Link
-                href="/employees"
+                href="/departments"
                 onClick={onCloseMobile}
                 className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
-                  pathname.startsWith('/employees')
+                  pathname.startsWith('/departments')
                     ? 'bg-[#09090b] text-white font-medium shadow-xs'
                     : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
                 }`}
               >
-                <Users2 className="w-4 h-4 shrink-0" />
-                <span>Employees</span>
+                <FolderTree className="w-4 h-4 shrink-0" />
+                <span>Departments</span>
               </Link>
             )}
 
-            {/* Team Management: Admin ONLY */}
-            {isAdmin && (
+            {/* Team Management: Admin, Department Heads, and Team Heads */}
+            {(isAdmin || isDepartmentHead || isTeamHead) && (
               <Link
                 href="/teams"
                 onClick={onCloseMobile}
@@ -267,6 +280,22 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               >
                 <Network className="w-4 h-4 shrink-0" />
                 <span>Teams</span>
+              </Link>
+            )}
+
+            {/* Section Management: Admin & Department Heads */}
+            {(isAdmin || isDepartmentHead) && (
+              <Link
+                href="/sections"
+                onClick={onCloseMobile}
+                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
+                  pathname.startsWith('/sections')
+                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
+                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
+                }`}
+              >
+                <Layers className="w-4 h-4 shrink-0" />
+                <span>Sections</span>
               </Link>
             )}
 
@@ -285,6 +314,39 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                 <span>Ventures</span>
               </Link>
             )}
+
+            {/* Employee Management: available to Admin, Department Heads, and Team Heads */}
+            {hasEmployeeManagementAccess && (
+              <Link
+                href="/employees"
+                onClick={onCloseMobile}
+                className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
+                  pathname.startsWith('/employees')
+                    ? 'bg-[#09090b] text-white font-medium shadow-xs'
+                    : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
+                }`}
+              >
+                <Users2 className="w-4 h-4 shrink-0" />
+                <span>Employees</span>
+              </Link>
+            )}
+
+            {/* Developer Architecture Area */}
+            <div className="pt-3 px-2 py-1 text-[10px] font-mono text-[#a1a1aa] uppercase tracking-wider">
+              Developer Area
+            </div>
+            <Link
+              href="/dev"
+              onClick={onCloseMobile}
+              className={`w-full px-2.5 py-2 text-xs rounded-lg flex items-center gap-2.5 transition-colors ${
+                pathname.startsWith('/dev')
+                  ? 'bg-[#18181b] text-white font-medium shadow-xs'
+                  : 'text-[#52525b] hover:text-[#09090b] hover:bg-[#f4f4f5]'
+              }`}
+            >
+              <Terminal className="w-4 h-4 shrink-0 text-purple-600" />
+              <span>Dev Catalog</span>
+            </Link>
           </nav>
         </div>
 

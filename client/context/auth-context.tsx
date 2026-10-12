@@ -24,10 +24,15 @@ export interface AuthContextType {
   ventures: UserVentureMembership[];
   activeMembership: UserVentureMembership | null;
   activeVenture: { id: string; name: string; slug: string; status?: string; sections?: Section[] } | null;
-  activeTeam: { id: string; ventureId: string; name: string; slug: string } | null;
+  activeDepartment: { id: string; ventureId: string; name: string; slug: string; headUserId: string | null } | null;
+  activeTeam: { id: string; departmentId?: string; ventureId?: string; name: string; slug: string; headUserId?: string | null } | null;
   activeSections: Section[];
   allVentures: Venture[];
   allSections: Section[];
+  departmentsLed: string[];
+  teamsLed: string[];
+  isDepartmentHead: boolean;
+  isTeamHead: boolean;
   setActiveVentureId: (ventureId: string) => void;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -47,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ventures, setVentures] = useState<UserVentureMembership[]>([]);
   const [allVentures, setAllVentures] = useState<Venture[]>([]);
   const [allSections, setAllSections] = useState<Section[]>([]);
+  const [departmentsLed, setDepartmentsLed] = useState<string[]>([]);
+  const [teamsLed, setTeamsLed] = useState<string[]>([]);
   const [activeVentureId, setActiveVentureIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -59,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setVentures(data.ventures);
       setAllVentures(data.allVentures || []);
       setAllSections(data.allSections || []);
+      setDepartmentsLed(data.departmentsLed || []);
+      setTeamsLed(data.teamsLed || []);
 
       // Retain or select active venture ID
       setActiveVentureIdState((prev) => {
@@ -75,6 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setVentures([]);
       setAllVentures([]);
       setAllSections([]);
+      setDepartmentsLed([]);
+      setTeamsLed([]);
       setActiveVentureIdState(null);
       setActiveVentureHeader(null);
     }
@@ -174,14 +185,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     : null;
 
-  const activeTeam = activeMembership ? activeMembership.team : null;
+  const activeDepartment = activeMembership?.department || null;
+  const activeTeam = activeMembership?.team || null;
   const activeSections = activeMembership ? activeMembership.sections : [];
 
   const isAdmin = user?.isAdmin === true;
-  const hasEmployeeManagementAccess =
-    isAdmin ||
-    activeSections.some((s) => s.slug === 'employees') ||
-    ventures.some((m) => m.sections.some((s) => s.slug === 'employees'));
+  const isDepartmentHead = departmentsLed.length > 0;
+  const isTeamHead = teamsLed.length > 0;
+
+  // Management access granted to Global Admin, Department Heads, and Team Heads
+  const hasEmployeeManagementAccess = isAdmin || isDepartmentHead || isTeamHead;
 
   const isAuthenticated = !!user;
 
@@ -192,10 +205,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ventures,
         activeMembership,
         activeVenture,
+        activeDepartment,
         activeTeam,
         activeSections,
         allVentures,
         allSections,
+        departmentsLed,
+        teamsLed,
+        isDepartmentHead,
+        isTeamHead,
         setActiveVentureId,
         isLoading,
         isAuthenticated,

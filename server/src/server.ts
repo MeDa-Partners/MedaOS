@@ -2,13 +2,17 @@ import { app } from './app';
 import { env } from './config/env';
 import { sqlClient } from './db';
 
-const server = app.listen(env.PORT, () => {
+import { bootstrapAdmin } from './db/bootstrap';
+
+const server = app.listen(env.PORT, '0.0.0.0', async () => {
   console.log(`==============================================`);
   console.log(` MeDa Partners Operating System - Backend`);
   console.log(` Environment: ${env.NODE_ENV}`);
-  console.log(` Listening on: http://localhost:${env.PORT}`);
+  console.log(` Listening on: http://localhost:${env.PORT} (and http://0.0.0.0:${env.PORT})`);
   console.log(` Health check: http://localhost:${env.PORT}/health`);
   console.log(`==============================================`);
+
+  await bootstrapAdmin();
 });
 
 // Graceful shutdown handling
@@ -33,5 +37,17 @@ async function gracefulShutdown(signal: string) {
   }, 10000).unref();
 }
 
+// Process safety handlers to prevent unhandled database rejections from crashing the server
+process.on('unhandledRejection', (reason: any) => {
+  const msg = reason?.message || String(reason);
+  console.error('[Process] Caught unhandled rejection:', msg);
+});
+
+process.on('uncaughtException', (err: any) => {
+  const msg = err?.message || String(err);
+  console.error('[Process] Caught uncaught exception:', msg);
+});
+
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+

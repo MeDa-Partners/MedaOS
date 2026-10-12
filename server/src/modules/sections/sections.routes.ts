@@ -1,71 +1,48 @@
 import { Router } from 'express';
 import { sectionsController } from './sections.controller';
 import { authenticate } from '../../middleware/authenticate';
-import { requireAdmin } from '../../middleware/require-admin';
-import { requireSection } from '../../middleware/require-section';
-import { requireEmployeeManagement } from '../../middleware/require-employee-management';
+import { ForbiddenError } from '../../utils/errors';
 
 const router = Router();
 
-// Viewing sections requires standard authentication
-router.get('/', authenticate, (req, res, next) =>
-  sectionsController.list(req, res, next)
-);
+// Catalog structural mutations (create, edit, delete) are strictly restricted to Dev Admin (/dev)
+router.post('/', (_req, _res, next) => {
+  next(
+    new ForbiddenError(
+      'Section catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot create sections.'
+    )
+  );
+});
 
-// Specific section access check test endpoints
-router.get(
-  '/sales/access-check',
-  authenticate,
-  requireSection('sales'),
-  sectionsController.accessCheck('sales')
-);
+router.patch('/:id/status', (_req, _res, next) => {
+  next(
+    new ForbiddenError(
+      'Section catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot alter section status.'
+    )
+  );
+});
 
-router.get(
-  '/operations/access-check',
-  authenticate,
-  requireSection('operations'),
-  sectionsController.accessCheck('operations')
-);
+router.patch('/:id', (_req, _res, next) => {
+  next(
+    new ForbiddenError(
+      'Section catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot edit section definitions.'
+    )
+  );
+});
 
-router.get(
-  '/orders/access-check',
-  authenticate,
-  requireSection('orders'),
-  sectionsController.accessCheck('orders')
-);
+router.delete('/:id', (_req, _res, next) => {
+  next(
+    new ForbiddenError(
+      'Section catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot delete sections.'
+    )
+  );
+});
 
-router.get(
-  '/nbd/access-check',
-  authenticate,
-  requireSection('nbd'),
-  sectionsController.accessCheck('nbd')
-);
+router.use(authenticate);
 
-router.get(
-  '/marketing/access-check',
-  authenticate,
-  requireSection('marketing'),
-  sectionsController.accessCheck('marketing')
-);
-
-router.get(
-  '/employees/access-check',
-  authenticate,
-  requireEmployeeManagement,
-  sectionsController.accessCheck('employees')
-);
-
-// Admin-only management endpoints
-router.post('/', authenticate, requireAdmin, (req, res, next) =>
-  sectionsController.create(req, res, next)
-);
-
-router.get('/:id', authenticate, (req, res, next) =>
-  sectionsController.getById(req, res, next)
-);
-
-router.patch('/:id', authenticate, requireAdmin, (req, res, next) =>
-  sectionsController.update(req, res, next)
-);
+router.get('/access-check', (req, res, next) => sectionsController.accessCheck(req, res, next));
+router.get('/:slug/access-check', (req, res, next) => sectionsController.accessCheck(req, res, next));
+router.get('/', (req, res, next) => sectionsController.list(req, res, next));
+router.get('/:id', (req, res, next) => sectionsController.getById(req, res, next));
 
 export const sectionsRoutes = router;

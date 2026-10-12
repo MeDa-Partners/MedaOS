@@ -1,17 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import { venturesService } from './ventures.service';
-import {
-  createVentureSchema,
-  updateVentureSchema,
-  setVentureSectionsSchema,
-} from './ventures.validation';
+import { createVentureSchema, updateVentureSchema } from './ventures.validation';
 import { sendSuccess } from '../../utils/response';
 import { getRouteParam } from '../../utils/params';
 
 export class VenturesController {
-  async list(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  private getRequester(req: Request) {
+    if (!req.user) return undefined;
+    return {
+      id: req.user.id,
+      isAdmin: req.user.isAdmin,
+    };
+  }
+
+  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const venturesList = await venturesService.listVentures();
+      const venturesList = await venturesService.listVentures(this.getRequester(req));
       sendSuccess(res, venturesList);
     } catch (error) {
       next(error);
@@ -49,34 +53,11 @@ export class VenturesController {
     }
   }
 
-  async setSections(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
-      const validatedInput = setVentureSectionsSchema.parse(req.body);
-      const venture = await venturesService.setVentureSections(id, validatedInput.sectionIds);
-      sendSuccess(res, venture, 200, 'Venture sections updated successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async testAccess(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
-    try {
-      const ventureId = getRouteParam(req.params.ventureId);
-      sendSuccess(
-        res,
-        {
-          allowed: true,
-          userId: req.user?.id,
-          ventureId,
-          message: 'Authorized to access venture data',
-        },
-        200
-      );
+      await venturesService.deleteVenture(id);
+      sendSuccess(res, null, 200, 'Venture deleted successfully');
     } catch (error) {
       next(error);
     }

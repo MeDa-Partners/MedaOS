@@ -1,61 +1,75 @@
 import { relations } from 'drizzle-orm';
 import { ventures } from './ventures';
-import { systemSections } from './sections';
-import { ventureSections } from './venture-sections';
+import { departments } from './departments';
 import { teams } from './teams';
+import { sections } from './sections';
 import { users } from './users';
-import { userVentures } from './user-ventures';
+import { userMemberships } from './user-memberships';
 import { userSections } from './user-sections';
 import { sessions } from './sessions';
 
 export const venturesRelations = relations(ventures, ({ many }) => ({
-  teams: many(teams),
-  ventureSections: many(ventureSections),
-  userVentures: many(userVentures),
-  userSections: many(userSections),
+  departments: many(departments),
+  userMemberships: many(userMemberships),
 }));
 
-export const systemSectionsRelations = relations(systemSections, ({ many }) => ({
-  ventureSections: many(ventureSections),
-  userSections: many(userSections),
-}));
-
-export const ventureSectionsRelations = relations(ventureSections, ({ one }) => ({
+export const departmentsRelations = relations(departments, ({ one, many }) => ({
   venture: one(ventures, {
-    fields: [ventureSections.ventureId],
+    fields: [departments.ventureId],
     references: [ventures.id],
   }),
-  section: one(systemSections, {
-    fields: [ventureSections.sectionId],
-    references: [systemSections.id],
+  headUser: one(users, {
+    fields: [departments.headUserId],
+    references: [users.id],
   }),
+  teams: many(teams),
+  sections: many(sections),
+  userMemberships: many(userMemberships),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
-  venture: one(ventures, {
-    fields: [teams.ventureId],
-    references: [ventures.id],
+  department: one(departments, {
+    fields: [teams.departmentId],
+    references: [departments.id],
   }),
-  userVentures: many(userVentures),
+  headUser: one(users, {
+    fields: [teams.headUserId],
+    references: [users.id],
+  }),
+  userMemberships: many(userMemberships),
+}));
+
+export const sectionsRelations = relations(sections, ({ one, many }) => ({
+  department: one(departments, {
+    fields: [sections.departmentId],
+    references: [departments.id],
+  }),
+  userSections: many(userSections),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
-  userVentures: many(userVentures),
+  userMemberships: many(userMemberships),
   userSections: many(userSections),
   sessions: many(sessions),
+  departmentsLed: many(departments),
+  teamsLed: many(teams),
 }));
 
-export const userVenturesRelations = relations(userVentures, ({ one }) => ({
+export const userMembershipsRelations = relations(userMemberships, ({ one }) => ({
   user: one(users, {
-    fields: [userVentures.userId],
+    fields: [userMemberships.userId],
     references: [users.id],
   }),
   venture: one(ventures, {
-    fields: [userVentures.ventureId],
+    fields: [userMemberships.ventureId],
     references: [ventures.id],
   }),
+  department: one(departments, {
+    fields: [userMemberships.departmentId],
+    references: [departments.id],
+  }),
   team: one(teams, {
-    fields: [userVentures.teamId],
+    fields: [userMemberships.teamId],
     references: [teams.id],
   }),
 }));
@@ -65,13 +79,9 @@ export const userSectionsRelations = relations(userSections, ({ one }) => ({
     fields: [userSections.userId],
     references: [users.id],
   }),
-  venture: one(ventures, {
-    fields: [userSections.ventureId],
-    references: [ventures.id],
-  }),
-  section: one(systemSections, {
+  section: one(sections, {
     fields: [userSections.sectionId],
-    references: [systemSections.id],
+    references: [sections.id],
   }),
 }));
 

@@ -36,15 +36,21 @@ router.patch('/:id/status', (req, res, next) =>
   usersController.updateStatus(req, res, next)
 );
 
-// Assigning venture team membership
+// Assigning organizational membership (venture, department, team)
+router.patch('/:id/membership', (req, res, next) =>
+  usersController.assignMembership(req, res, next)
+);
 router.patch('/:id/team', (req, res, next) =>
-  usersController.assignTeam(req, res, next)
+  usersController.assignMembership(req, res, next)
 );
 router.patch('/:id/assignment', (req, res, next) =>
-  usersController.assignTeam(req, res, next)
+  usersController.assignMembership(req, res, next)
+);
+router.delete('/:id/membership/:ventureId', (req, res, next) =>
+  usersController.removeMembership(req, res, next)
 );
 router.delete('/:id/assignment/:ventureId', (req, res, next) =>
-  usersController.removeVenture(req, res, next)
+  usersController.removeMembership(req, res, next)
 );
 
 // Assigning venture section access

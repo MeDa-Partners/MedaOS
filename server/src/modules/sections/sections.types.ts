@@ -1,9 +1,16 @@
-export interface SystemSectionResponse {
+export interface SectionDetail {
   id: string;
+  departmentId: string;
+  departmentName?: string;
+  departmentSlug?: string;
+  ventureId?: string;
+  ventureName?: string;
+  ventureSlug?: string;
   name: string;
   slug: string;
   route: string;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
+  status: 'active' | 'inactive';
+  userCount?: number;
+  createdAt: string;
+  updatedAt: string;
 }

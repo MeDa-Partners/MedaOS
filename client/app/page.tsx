@@ -14,8 +14,8 @@ import {
   Users2,
   ArrowUpRight,
   Network,
-  Shield,
   Layers,
+  Terminal,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -26,6 +26,8 @@ export default function DashboardPage() {
     activeSections,
     ventures,
     isAdmin,
+    isDepartmentHead,
+    isTeamHead,
     hasEmployeeManagementAccess,
   } = useAuth();
 
@@ -218,11 +220,11 @@ export default function DashboardPage() {
                       <ArrowUpRight className="w-4 h-4 text-[#a1a1aa] group-hover:text-[#09090b] transition-colors" />
                     </div>
                     <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
-                      Employee Management
+                      Employee Access & Permissions
                     </h4>
                     <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
                       {isAdmin
-                        ? 'Manage user records, team assignments, and section permissions across all ventures.'
+                        ? 'Manage user records, team assignments, and user-level section permissions across ventures.'
                         : `Manage team employees and configure section access within ${activeVenture?.name || 'your venture'}.`}
                     </p>
                   </div>
@@ -236,8 +238,38 @@ export default function DashboardPage() {
                 </Link>
               )}
 
-              {/* Team Management: Admin only */}
-              {isAdmin && (
+              {/* Department Management: Admin & Department Heads */}
+              {(isAdmin || isDepartmentHead) && (
+                <Link
+                  href="/departments"
+                  className="p-5 bg-white hover:bg-[#fafafa] border border-[#e4e4e7] hover:border-[#d4d4d8] rounded-xl transition-all group flex flex-col justify-between shadow-2xs"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                        <Building2 className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <ArrowUpRight className="w-4 h-4 text-[#a1a1aa] group-hover:text-[#09090b] transition-colors" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
+                      Department Directory & Heads
+                    </h4>
+                    <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
+                      View department structures and appoint Department Heads. (Catalog structural creation is governed in Dev Admin).
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-[11px] font-mono text-[#71717a]">
+                    <span>Route: /departments</span>
+                    <span className="text-[#09090b] font-medium group-hover:underline">
+                      View Departments
+                    </span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Team Management: Admin, Department Heads, Team Heads */}
+              {(isAdmin || isDepartmentHead || isTeamHead) && (
                 <Link
                   href="/teams"
                   className="p-5 bg-white hover:bg-[#fafafa] border border-[#e4e4e7] hover:border-[#d4d4d8] rounded-xl transition-all group flex flex-col justify-between shadow-2xs"
@@ -250,10 +282,10 @@ export default function DashboardPage() {
                       <ArrowUpRight className="w-4 h-4 text-[#a1a1aa] group-hover:text-[#09090b] transition-colors" />
                     </div>
                     <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
-                      Team Management
+                      Team Operations
                     </h4>
                     <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
-                      Configure organizational teams per venture. Define which functional teams exist inside each company.
+                      Configure operational teams under departments, appoint Team Heads, and organize team members.
                     </p>
                   </div>
 
@@ -266,7 +298,37 @@ export default function DashboardPage() {
                 </Link>
               )}
 
-              {/* Venture Management: Admin only */}
+              {/* Section Management: Admin & Department Heads */}
+              {(isAdmin || isDepartmentHead) && (
+                <Link
+                  href="/sections"
+                  className="p-5 bg-white hover:bg-[#fafafa] border border-[#e4e4e7] hover:border-[#d4d4d8] rounded-xl transition-all group flex flex-col justify-between shadow-2xs"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2.5 rounded-lg bg-violet-50 border border-violet-200">
+                        <Layers className="w-5 h-5 text-violet-600" />
+                      </div>
+                      <ArrowUpRight className="w-4 h-4 text-[#a1a1aa] group-hover:text-[#09090b] transition-colors" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
+                      Section Directory
+                    </h4>
+                    <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
+                      Browse active sections by department. User permissions are assigned in /employees; catalog definitions in /dev.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-[11px] font-mono text-[#71717a]">
+                    <span>Route: /sections</span>
+                    <span className="text-[#09090b] font-medium group-hover:underline">
+                      View Sections
+                    </span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Venture Directory: Admin only */}
               {isAdmin && (
                 <Link
                   href="/ventures"
@@ -280,21 +342,54 @@ export default function DashboardPage() {
                       <ArrowUpRight className="w-4 h-4 text-[#a1a1aa] group-hover:text-[#09090b] transition-colors" />
                     </div>
                     <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
-                      Venture Management
+                      Venture Directory
                     </h4>
                     <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
-                      Register new venture companies and configure which business sections are enabled for each venture.
+                      Browse ventures and access workspaces. (Venture creation and catalog structure are managed in Dev Admin).
                     </p>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-[#f0f0f2] flex items-center justify-between text-[11px] font-mono text-[#71717a]">
                     <span>Route: /ventures</span>
                     <span className="text-[#09090b] font-medium group-hover:underline">
-                      Configure Ventures
+                      Browse Ventures
                     </span>
                   </div>
                 </Link>
               )}
+
+              {/* Dev Admin card */}
+              <Link
+                href="/dev"
+                className="p-5 bg-gradient-to-br from-purple-50/50 to-white hover:bg-purple-50/80 border border-purple-200 hover:border-purple-300 rounded-xl transition-all group flex flex-col justify-between shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2.5 rounded-lg bg-purple-100 border border-purple-200">
+                      <Terminal className="w-5 h-5 text-purple-700" />
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-purple-400 group-hover:text-purple-700 transition-colors" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-sm font-semibold text-[#09090b] tracking-tight">
+                      Dev Admin Catalog
+                    </h4>
+                    <span className="text-[10px] font-mono bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-semibold">
+                      DEV
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#71717a] mt-1 leading-relaxed">
+                    Developer-only interface to manage Ventures, Departments, and Sections with code registry verification.
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-purple-100 flex items-center justify-between text-[11px] font-mono text-purple-700">
+                  <span>Route: /dev</span>
+                  <span className="font-medium group-hover:underline">
+                    Developer Portal
+                  </span>
+                </div>
+              </Link>
             </div>
           </div>
         )}
@@ -340,7 +435,7 @@ export default function DashboardPage() {
                   <div className="text-[11px] text-[#52525b] space-y-1">
                     <div>
                       Team:{' '}
-                      <strong className="text-[#18181b]">{m.team.name}</strong>
+                      <strong className="text-[#18181b]">{m.team?.name || (isAdmin ? 'Administration' : 'Unassigned')}</strong>
                     </div>
                     <div className="text-[#71717a]">
                       Access: {m.sections.length} {(m.sections.length === 1 ? 'section' : 'sections')}

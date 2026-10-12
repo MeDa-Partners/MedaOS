@@ -13,9 +13,15 @@ const isRemoteDb =
 export const sqlClient = postgres(env.DATABASE_URL, {
   prepare: false, // Essential for Supabase PgBouncer transaction mode
   ssl: isRemoteDb ? 'require' : false,
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 15,
+  max: 15, // Keep sufficient connections for concurrent browser requests over pooler
+  idle_timeout: 10,
+  connect_timeout: 20,
+  max_lifetime: 60 * 30, // 30 minutes max connection lifetime
+  connection: {
+    statement_timeout: 15000, // 15s statement timeout in Postgres
+    idle_in_transaction_session_timeout: 10000, // 10s auto-abort if a client connection stays idle with an open transaction
+  },
+  onnotice: () => {}, // Suppress notice spam
 });
 
 export const db = drizzle(sqlClient, { schema });

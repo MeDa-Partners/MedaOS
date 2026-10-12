@@ -35,6 +35,27 @@ const envSchema = z.object({
   ADMIN_INITIAL_NAME: z
     .string()
     .default('System Administrator'),
+  DEV_ADMIN_USERNAME: z
+    .string()
+    .default('devadmin'),
+  DEV_ADMIN_PASSWORD: z
+    .string()
+    .min(8)
+    .default('DevAdmin@MeDa2026!'),
+  DEV_ADMIN_PASSWORD_HASH: z
+    .string()
+    .optional(),
+  DEV_SESSION_COOKIE_NAME: z
+    .string()
+    .default('meda_dev_session'),
+  DEV_SESSION_SECRET: z
+    .string()
+    .min(16)
+    .default('meda-dev-super-secret-key-2026-secure'),
+  DEV_SESSION_TTL_HOURS: z
+    .string()
+    .default('24')
+    .transform((val) => parseInt(val, 10)),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

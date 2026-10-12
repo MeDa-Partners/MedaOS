@@ -1,14 +1,23 @@
 export interface TeamDetail {
   id: string;
-  ventureId: string;
+  departmentId: string;
+  departmentName?: string;
+  departmentSlug?: string;
+  ventureId?: string;
+  ventureName?: string;
+  ventureSlug?: string;
   name: string;
   slug: string;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
-  venture?: {
+  headUserId: string | null;
+  headUserName: string | null;
+  headUserEmail: string | null;
+  headUser?: {
     id: string;
     name: string;
-    slug: string;
-  };
+    email: string;
+  } | null;
+  status: string;
+  memberCount?: number;
+  createdAt: string;
+  updatedAt: string;
 }

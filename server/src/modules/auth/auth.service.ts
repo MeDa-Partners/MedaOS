@@ -4,10 +4,10 @@ import {
   users,
   sessions,
   ventures,
+  departments,
   teams,
-  systemSections,
-  ventureSections,
-  userVentures,
+  sections,
+  userMemberships,
   userSections,
 } from '../../db/schema';
 import {
@@ -23,7 +23,13 @@ import {
   BadRequestError,
 } from '../../utils/errors';
 import { LoginInput, ChangePasswordInput } from './auth.validation';
-import { AuthMeResponse, LoginResult, UserVentureMembership } from './auth.types';
+import { invalidateSessionCache } from '../../middleware/authenticate';
+import {
+  AuthMeResponse,
+  LoginResult,
+  UserVentureMembership,
+  SafeSection,
+} from './auth.types';
 
 export class AuthService {
   /**
@@ -77,10 +83,11 @@ export class AuthService {
    */
   async logout(sessionId: string): Promise<void> {
     await db.delete(sessions).where(eq(sessions.id, sessionId));
+    invalidateSessionCache();
   }
 
   /**
-   * Resolves the full identity, venture memberships, teams, and accessible sections for a user.
+   * Resolves the full identity, venture memberships, department, team, and accessible sections.
    */
   async getAuthMe(userId: string): Promise<AuthMeResponse> {
     const [user] = await db
@@ -97,157 +104,174 @@ export class AuthService {
       throw new ForbiddenError('Your account has been deactivated.');
     }
 
-    // All active system sections catalog
-    const allCatalogSections = await db
-      .select({
-        id: systemSections.id,
-        name: systemSections.name,
-        slug: systemSections.slug,
-        route: systemSections.route,
-      })
-      .from(systemSections)
-      .where(eq(systemSections.status, 'active'));
-
-    const allVenturesList = await db
-      .select({
-        id: ventures.id,
-        name: ventures.name,
-        slug: ventures.slug,
-        status: ventures.status,
-      })
-      .from(ventures)
-      .where(eq(ventures.status, 'active'));
-
-    // Preload enabled sections for all active ventures
-    const allVenturesWithSections: {
-      id: string;
-      name: string;
-      slug: string;
-      status: string;
-      sections: { id: string; name: string; slug: string; route: string }[];
-    }[] = [];
-
-    for (const v of allVenturesList) {
-      const activeVentureSecs = await db
+    // Resolve departments, teams, active ventures and sections in parallel
+    const [deptLedRows, teamLedRows, allVenturesList, allActiveSections] = await Promise.all([
+      db
+        .select({ id: departments.id })
+        .from(departments)
+        .where(eq(departments.headUserId, user.id)),
+      db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(eq(teams.headUserId, user.id)),
+      db
         .select({
-          id: systemSections.id,
-          name: systemSections.name,
-          slug: systemSections.slug,
-          route: systemSections.route,
+          id: ventures.id,
+          name: ventures.name,
+          slug: ventures.slug,
+          status: ventures.status,
         })
-        .from(ventureSections)
-        .innerJoin(systemSections, eq(ventureSections.sectionId, systemSections.id))
-        .where(
-          and(
-            eq(ventureSections.ventureId, v.id),
-            eq(systemSections.status, 'active')
-          )
-        );
+        .from(ventures)
+        .where(eq(ventures.status, 'active')),
+      db
+        .select({
+          id: sections.id,
+          departmentId: sections.departmentId,
+          name: sections.name,
+          slug: sections.slug,
+          status: sections.status,
+          ventureId: departments.ventureId,
+        })
+        .from(sections)
+        .innerJoin(departments, eq(sections.departmentId, departments.id))
+        .where(eq(sections.status, 'active')),
+    ]);
 
-      allVenturesWithSections.push({
+    const departmentsLed = deptLedRows.map((d) => d.id);
+    const teamsLed = teamLedRows.map((t) => t.id);
+
+    const allVenturesWithSections = allVenturesList.map((v) => {
+      const vSections: SafeSection[] = allActiveSections
+        .filter((s) => s.ventureId === v.id)
+        .map((s) => ({
+          id: s.id,
+          departmentId: s.departmentId,
+          name: s.name,
+          slug: s.slug,
+          route: `/${v.slug}/${s.slug}`,
+          status: s.status,
+        }));
+      return {
         ...v,
-        sections: activeVentureSecs,
-      });
-    }
+        sections: vSections,
+      };
+    });
 
-    let ventureMemberships: UserVentureMembership[] = [];
+    const ventureMemberships: UserVentureMembership[] = [];
 
     if (user.isAdmin) {
-      // Administrator has complete unrestricted access across all active ventures
+      // Global Admin has complete organizational access across all active ventures
       for (const v of allVenturesWithSections) {
-        // Find primary or default team if any
-        const [vTeam] = await db
-          .select({
-            id: teams.id,
-            ventureId: teams.ventureId,
-            name: teams.name,
-            slug: teams.slug,
-          })
-          .from(teams)
-          .where(eq(teams.ventureId, v.id))
-          .limit(1);
-
         ventureMemberships.push({
           venture: v,
-          team: vTeam || {
-            id: 'admin',
-            ventureId: v.id,
-            name: 'Administration',
-            slug: 'admin',
-          },
-          sections: v.sections,
+          department: null,
+          team: null,
+          sections: v.sections || [],
         });
       }
     } else {
-      // Non-admin employee: resolve specific venture memberships and assigned sections
-      const userVentureRows = await db
-        .select({
-          ventureId: ventures.id,
-          ventureName: ventures.name,
-          ventureSlug: ventures.slug,
-          ventureStatus: ventures.status,
-          teamId: teams.id,
-          teamName: teams.name,
-          teamSlug: teams.slug,
-        })
-        .from(userVentures)
-        .innerJoin(ventures, eq(userVentures.ventureId, ventures.id))
-        .innerJoin(teams, eq(userVentures.teamId, teams.id))
-        .where(
-          and(
-            eq(userVentures.userId, user.id),
-            eq(ventures.status, 'active'),
-            eq(teams.status, 'active')
-          )
-        );
-
-      for (const uv of userVentureRows) {
-        // Fetch sections assigned to this user within this specific venture
-        // (Must also be an enabled section in this venture's venture_sections)
-        const assignedSections = await db
+      // Query user's memberships and assigned sections in parallel
+      const [userMemberRows, userSecRows] = await Promise.all([
+        db
           .select({
-            id: systemSections.id,
-            name: systemSections.name,
-            slug: systemSections.slug,
-            route: systemSections.route,
+            ventureId: ventures.id,
+            ventureName: ventures.name,
+            ventureSlug: ventures.slug,
+            ventureStatus: ventures.status,
+            departmentId: departments.id,
+            departmentName: departments.name,
+            departmentSlug: departments.slug,
+            deptHeadUserId: departments.headUserId,
+            teamId: teams.id,
+            teamName: teams.name,
+            teamSlug: teams.slug,
+            teamHeadUserId: teams.headUserId,
           })
-          .from(userSections)
-          .innerJoin(systemSections, eq(userSections.sectionId, systemSections.id))
-          .innerJoin(
-            ventureSections,
-            and(
-              eq(ventureSections.ventureId, userSections.ventureId),
-              eq(ventureSections.sectionId, systemSections.id)
-            )
-          )
+          .from(userMemberships)
+          .innerJoin(ventures, eq(userMemberships.ventureId, ventures.id))
+          .innerJoin(departments, eq(userMemberships.departmentId, departments.id))
+          .innerJoin(teams, eq(userMemberships.teamId, teams.id))
           .where(
             and(
-              eq(userSections.userId, user.id),
-              eq(userSections.ventureId, uv.ventureId),
-              eq(systemSections.status, 'active')
+              eq(userMemberships.userId, user.id),
+              eq(ventures.status, 'active')
             )
-          );
+          ),
+        db
+          .select({
+            sectionId: userSections.sectionId,
+          })
+          .from(userSections)
+          .where(eq(userSections.userId, user.id)),
+      ]);
 
-        const vConfig = allVenturesWithSections.find((v) => v.id === uv.ventureId);
+      const assignedSectionIdSet = new Set(userSecRows.map((r) => r.sectionId));
+
+      for (const m of userMemberRows) {
+        const isDeptHead = m.deptHeadUserId === user.id;
+
+        // Department Heads inherit access to all active sections in their department
+        // Regular employees and Team Heads access their specifically assigned active sections in their department
+        const deptActiveSections = allActiveSections.filter(
+          (s) => s.departmentId === m.departmentId
+        );
+
+        const accessibleSections: SafeSection[] = isDeptHead
+          ? deptActiveSections.map((s) => ({
+              id: s.id,
+              departmentId: s.departmentId,
+              name: s.name,
+              slug: s.slug,
+              route: `/${m.ventureSlug}/${s.slug}`,
+              status: s.status,
+            }))
+          : deptActiveSections
+              .filter((s) => assignedSectionIdSet.has(s.id))
+              .map((s) => ({
+                id: s.id,
+                departmentId: s.departmentId,
+                name: s.name,
+                slug: s.slug,
+                route: `/${m.ventureSlug}/${s.slug}`,
+                status: s.status,
+              }));
 
         ventureMemberships.push({
           venture: {
-            id: uv.ventureId,
-            name: uv.ventureName,
-            slug: uv.ventureSlug,
-            status: uv.ventureStatus,
-            sections: vConfig ? vConfig.sections : [],
+            id: m.ventureId,
+            name: m.ventureName,
+            slug: m.ventureSlug,
+            status: m.ventureStatus,
+            sections: accessibleSections,
+          },
+          department: {
+            id: m.departmentId,
+            ventureId: m.ventureId,
+            name: m.departmentName,
+            slug: m.departmentSlug,
+            headUserId: m.deptHeadUserId,
           },
           team: {
-            id: uv.teamId,
-            ventureId: uv.ventureId,
-            name: uv.teamName,
-            slug: uv.teamSlug,
+            id: m.teamId,
+            departmentId: m.departmentId,
+            ventureId: m.ventureId,
+            name: m.teamName,
+            slug: m.teamSlug,
+            headUserId: m.teamHeadUserId,
           },
-          sections: assignedSections,
+          sections: accessibleSections,
         });
       }
     }
+
+    const catalogSections: SafeSection[] = allActiveSections.map((s) => ({
+      id: s.id,
+      departmentId: s.departmentId,
+      name: s.name,
+      slug: s.slug,
+      route: `/${s.slug}`,
+      status: s.status,
+    }));
 
     return {
       user: {
@@ -259,7 +283,11 @@ export class AuthService {
       },
       ventures: ventureMemberships,
       allVentures: allVenturesWithSections,
-      allSections: allCatalogSections,
+      allSections: catalogSections,
+      departmentsLed,
+      teamsLed,
+      isDepartmentHead: departmentsLed.length > 0,
+      isTeamHead: teamsLed.length > 0,
     };
   }
 

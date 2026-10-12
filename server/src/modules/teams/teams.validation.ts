@@ -1,27 +1,34 @@
 import { z } from 'zod';
 
 export const createTeamSchema = z.object({
-  ventureId: z.string().uuid('Valid venture ID is required'),
+  departmentId: z.string().uuid('Valid department ID is required'),
   name: z.string().min(1, 'Name is required').max(100),
   slug: z
     .string()
-    .min(1, 'Slug is required')
+    .min(1)
     .max(100)
-    .regex(/^[a-z0-9-]+$/, 'Slug must be alphanumeric lowercase with hyphens'),
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens')
+    .optional(),
+  headUserId: z.string().uuid('Valid user ID is required').nullable().optional(),
   status: z.enum(['active', 'inactive']).optional().default('active'),
 });
 
 export const updateTeamSchema = z.object({
-  ventureId: z.string().uuid().optional(),
   name: z.string().min(1).max(100).optional(),
   slug: z
     .string()
     .min(1)
     .max(100)
-    .regex(/^[a-z0-9-]+$/, 'Slug must be alphanumeric lowercase with hyphens')
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens')
     .optional(),
+  headUserId: z.string().uuid().nullable().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+});
+
+export const assignTeamHeadSchema = z.object({
+  headUserId: z.string().uuid().nullable(),
 });
 
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
+export type AssignTeamHeadInput = z.infer<typeof assignTeamHeadSchema>;

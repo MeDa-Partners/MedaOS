@@ -1,106 +1,179 @@
-import { eq } from 'drizzle-orm';
+import { eq, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../../db';
-import { ventures, ventureSections, systemSections, teams } from '../../db/schema';
+import { ventures, departments, teams, sections, userMemberships, users } from '../../db/schema';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { CreateVentureInput, UpdateVentureInput } from './ventures.validation';
 import { VentureResponse } from './ventures.types';
 
 export class VenturesService {
-  /**
-   * Lists all ventures including their active teams and available sections.
-   */
-  async listVentures(): Promise<VentureResponse[]> {
-    const allVentures = await db.select().from(ventures);
-
-    const result: VentureResponse[] = [];
-
-    for (const v of allVentures) {
-      const [vSections, vTeams] = await Promise.all([
-        db
-          .select({
-            id: systemSections.id,
-            name: systemSections.name,
-            slug: systemSections.slug,
-            route: systemSections.route,
-          })
-          .from(ventureSections)
-          .innerJoin(systemSections, eq(ventureSections.sectionId, systemSections.id))
-          .where(eq(ventureSections.ventureId, v.id)),
-
-        db
-          .select({
-            id: teams.id,
-            ventureId: teams.ventureId,
-            name: teams.name,
-            slug: teams.slug,
-            status: teams.status,
-          })
-          .from(teams)
-          .where(eq(teams.ventureId, v.id)),
-      ]);
-
-      result.push({
-        ...v,
-        sections: vSections,
-        teams: vTeams,
-      });
-    }
-
-    return result;
+  private slugify(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
   }
 
   /**
-   * Retrieves a single venture by ID with its configured sections and teams.
+   * Lists ventures. Global Admin sees all; others see active ventures they belong to.
+   */
+  async listVentures(requester?: { id: string; isAdmin: boolean }): Promise<VentureResponse[]> {
+    let ventureRows;
+
+    if (!requester || requester.isAdmin) {
+      ventureRows = await db
+        .select()
+        .from(ventures)
+        .orderBy(asc(ventures.createdAt), asc(ventures.name));
+    } else {
+      // Find venture IDs caller belongs to or leads
+      const [memberships, deptLeads] = await Promise.all([
+        db
+          .select({ ventureId: userMemberships.ventureId })
+          .from(userMemberships)
+          .where(eq(userMemberships.userId, requester.id)),
+        db
+          .select({ ventureId: departments.ventureId })
+          .from(departments)
+          .where(eq(departments.headUserId, requester.id)),
+      ]);
+
+      const allowedIds = Array.from(
+        new Set([...memberships.map((m) => m.ventureId), ...deptLeads.map((d) => d.ventureId)])
+      );
+
+      if (allowedIds.length === 0) {
+        return [];
+      }
+
+      ventureRows = await db
+        .select()
+        .from(ventures)
+        .where(inArray(ventures.id, allowedIds))
+        .orderBy(asc(ventures.createdAt), asc(ventures.name));
+    }
+
+    const ventureIds = ventureRows.map((v) => v.id);
+    let deptCounts = new Map<string, number>();
+    let memberCounts = new Map<string, number>();
+
+    if (ventureIds.length > 0) {
+      const [dCounts, mCounts] = await Promise.all([
+        db
+          .select({
+            ventureId: departments.ventureId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(departments)
+          .groupBy(departments.ventureId),
+        db
+          .select({
+            ventureId: userMemberships.ventureId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(userMemberships)
+          .groupBy(userMemberships.ventureId),
+      ]);
+
+      dCounts.forEach((c) => deptCounts.set(c.ventureId, c.count));
+      mCounts.forEach((c) => memberCounts.set(c.ventureId, c.count));
+    }
+
+    return ventureRows.map((v) => ({
+      id: v.id,
+      name: v.name,
+      slug: v.slug,
+      status: v.status,
+      departmentCount: deptCounts.get(v.id) || 0,
+      employeeCount: memberCounts.get(v.id) || 0,
+      createdAt: v.createdAt.toISOString(),
+      updatedAt: v.updatedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Retrieves single venture by ID with departments, teams, sections.
    */
   async getVentureById(id: string): Promise<VentureResponse> {
-    const records = await db
+    const [v] = await db
       .select()
       .from(ventures)
       .where(eq(ventures.id, id))
       .limit(1);
 
-    if (records.length === 0) {
-      throw new NotFoundError(`Venture with ID ${id} not found`);
+    if (!v) {
+      throw new NotFoundError(`Venture with id "${id}" not found`);
     }
 
-    const v = records[0];
+    // Load departments
+    const deptRows = await db
+      .select({
+        id: departments.id,
+        name: departments.name,
+        slug: departments.slug,
+        headUserId: departments.headUserId,
+        headUserName: users.name,
+        status: departments.status,
+      })
+      .from(departments)
+      .leftJoin(users, eq(departments.headUserId, users.id))
+      .where(eq(departments.ventureId, id));
 
-    const [vSections, vTeams] = await Promise.all([
-      db
-        .select({
-          id: systemSections.id,
-          name: systemSections.name,
-          slug: systemSections.slug,
-          route: systemSections.route,
-        })
-        .from(ventureSections)
-        .innerJoin(systemSections, eq(ventureSections.sectionId, systemSections.id))
-        .where(eq(ventureSections.ventureId, v.id)),
+    const deptIds = deptRows.map((d) => d.id);
+    let allTeams: { id: string; departmentId: string; name: string; slug: string; headUserId: string | null; status: string }[] = [];
+    let allSections: { id: string; departmentId: string; name: string; slug: string; status: string }[] = [];
 
-      db
-        .select({
-          id: teams.id,
-          ventureId: teams.ventureId,
-          name: teams.name,
-          slug: teams.slug,
-          status: teams.status,
-        })
-        .from(teams)
-        .where(eq(teams.ventureId, v.id)),
-    ]);
+    if (deptIds.length > 0) {
+      [allTeams, allSections] = await Promise.all([
+        db
+          .select({
+            id: teams.id,
+            departmentId: teams.departmentId,
+            name: teams.name,
+            slug: teams.slug,
+            headUserId: teams.headUserId,
+            status: teams.status,
+          })
+          .from(teams)
+          .where(inArray(teams.departmentId, deptIds)),
+        db
+          .select({
+            id: sections.id,
+            departmentId: sections.departmentId,
+            name: sections.name,
+            slug: sections.slug,
+            status: sections.status,
+          })
+          .from(sections)
+          .where(inArray(sections.departmentId, deptIds)),
+      ]);
+    }
+
+    const deptDetails = deptRows.map((d) => ({
+      id: d.id,
+      name: d.name,
+      slug: d.slug,
+      headUserId: d.headUserId,
+      headUserName: d.headUserName,
+      status: d.status,
+      teams: allTeams.filter((t) => t.departmentId === d.id),
+      sections: allSections.filter((s) => s.departmentId === d.id),
+    }));
 
     return {
-      ...v,
-      sections: vSections,
-      teams: vTeams,
+      id: v.id,
+      name: v.name,
+      slug: v.slug,
+      status: v.status,
+      departmentCount: deptRows.length,
+      departments: deptDetails,
+      createdAt: v.createdAt.toISOString(),
+      updatedAt: v.updatedAt.toISOString(),
     };
   }
 
-  /**
-   * Creates a new venture and optionally configures its initial sections.
-   */
   async createVenture(input: CreateVentureInput): Promise<VentureResponse> {
-    const slug = input.slug.toLowerCase().trim();
+    const slug = input.slug || this.slugify(input.name);
 
     const existing = await db
       .select({ id: ventures.id })
@@ -109,115 +182,77 @@ export class VenturesService {
       .limit(1);
 
     if (existing.length > 0) {
-      throw new ConflictError(`Venture with slug "${slug}" already exists`);
+      throw new ConflictError(`Venture slug "${slug}" is already in use`);
     }
 
-    const created = await db.transaction(async (tx) => {
-      const [newVenture] = await tx
-        .insert(ventures)
-        .values({
-          name: input.name.trim(),
-          slug,
-          status: input.status,
-        })
-        .returning();
+    const [inserted] = await db
+      .insert(ventures)
+      .values({
+        name: input.name,
+        slug,
+        status: input.status || 'active',
+      })
+      .returning();
 
-      if (input.sectionIds && input.sectionIds.length > 0) {
-        const uniqueSectionIds = Array.from(new Set(input.sectionIds));
-        await tx.insert(ventureSections).values(
-          uniqueSectionIds.map((sectionId) => ({
-            ventureId: newVenture.id,
-            sectionId,
-          }))
-        );
-      }
-
-      return newVenture;
-    });
-
-    return this.getVentureById(created.id);
+    return {
+      id: inserted.id,
+      name: inserted.name,
+      slug: inserted.slug,
+      status: inserted.status,
+      departmentCount: 0,
+      departments: [],
+      createdAt: inserted.createdAt.toISOString(),
+      updatedAt: inserted.updatedAt.toISOString(),
+    };
   }
 
-  /**
-   * Updates an existing venture's name, slug, or status.
-   */
-  async updateVenture(
-    id: string,
-    input: UpdateVentureInput
-  ): Promise<VentureResponse> {
-    const existing = await db
+  async updateVenture(id: string, input: UpdateVentureInput): Promise<VentureResponse> {
+    const [current] = await db
+      .select()
+      .from(ventures)
+      .where(eq(ventures.id, id))
+      .limit(1);
+
+    if (!current) {
+      throw new NotFoundError(`Venture with ID ${id} not found`);
+    }
+
+    if (input.slug && input.slug !== current.slug) {
+      const existing = await db
+        .select({ id: ventures.id })
+        .from(ventures)
+        .where(eq(ventures.slug, input.slug))
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new ConflictError(`Venture slug "${input.slug}" is already in use`);
+      }
+    }
+
+    const updateData: Partial<typeof ventures.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.slug !== undefined) updateData.slug = input.slug;
+    if (input.status !== undefined) updateData.status = input.status;
+
+    await db.update(ventures).set(updateData).where(eq(ventures.id, id));
+
+    return this.getVentureById(id);
+  }
+
+  async deleteVenture(id: string): Promise<void> {
+    const [current] = await db
       .select({ id: ventures.id })
       .from(ventures)
       .where(eq(ventures.id, id))
       .limit(1);
 
-    if (existing.length === 0) {
+    if (!current) {
       throw new NotFoundError(`Venture with ID ${id} not found`);
     }
 
-    if (input.slug) {
-      const slug = input.slug.toLowerCase().trim();
-      const conflict = await db
-        .select({ id: ventures.id })
-        .from(ventures)
-        .where(eq(ventures.slug, slug))
-        .limit(1);
-
-      if (conflict.length > 0 && conflict[0].id !== id) {
-        throw new ConflictError(`Venture slug "${slug}" is already in use`);
-      }
-    }
-
-    await db
-      .update(ventures)
-      .set({
-        ...(input.name && { name: input.name.trim() }),
-        ...(input.slug && { slug: input.slug.toLowerCase().trim() }),
-        ...(input.status && { status: input.status }),
-        updatedAt: new Date(),
-      })
-      .where(eq(ventures.id, id));
-
-    return this.getVentureById(id);
-  }
-
-  /**
-   * Updates the available system sections enabled for a venture.
-   */
-  async setVentureSections(
-    ventureId: string,
-    sectionIds: string[]
-  ): Promise<VentureResponse> {
-    const existing = await db
-      .select({ id: ventures.id })
-      .from(ventures)
-      .where(eq(ventures.id, ventureId))
-      .limit(1);
-
-    if (existing.length === 0) {
-      throw new NotFoundError(`Venture with ID ${ventureId} not found`);
-    }
-
-    const uniqueSectionIds = Array.from(new Set(sectionIds));
-
-    await db.transaction(async (tx) => {
-      // Remove old venture sections
-      await tx
-        .delete(ventureSections)
-        .where(eq(ventureSections.ventureId, ventureId));
-
-      // Insert new associations
-      if (uniqueSectionIds.length > 0) {
-        await tx.insert(ventureSections).values(
-          uniqueSectionIds.map((sectionId) => ({
-            ventureId,
-            sectionId,
-          }))
-        );
-      }
-    });
-
-    return this.getVentureById(ventureId);
+    await db.delete(ventures).where(eq(ventures.id, id));
   }
 }
 

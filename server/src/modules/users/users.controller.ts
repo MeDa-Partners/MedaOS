@@ -4,12 +4,12 @@ import {
   createUserSchema,
   updateUserSchema,
   updateStatusSchema,
-  assignTeamSchema,
+  assignMembershipSchema,
   assignSectionsSchema,
   resetPasswordSchema,
 } from './users.validation';
 import { sendSuccess } from '../../utils/response';
-import { getRouteParam } from '../../utils/params';
+import { getRouteParam, cleanUuidParam } from '../../utils/params';
 
 export class UsersController {
   private getRequester(req: Request) {
@@ -21,27 +21,18 @@ export class UsersController {
 
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
       const search = req.query.search as string | undefined;
-      const ventureId = req.query.ventureId as string | undefined;
-      const teamId = req.query.teamId as string | undefined;
+      const ventureId = cleanUuidParam(req.query.ventureId);
+      const departmentId = cleanUuidParam(req.query.departmentId);
+      const teamId = cleanUuidParam(req.query.teamId);
 
-      const dbStart = Date.now();
-      // your Supabase query
       const result = await usersService.listUsers(
-        { page, limit, search, ventureId, teamId },
+        { page, limit, search, ventureId, departmentId, teamId },
         this.getRequester(req)
       );
-      console.log("3. Supabase:", Date.now() - dbStart, "ms");
-
-      const logicStart = Date.now();
-      // your remaining processing
       sendSuccess(res, result);
-      console.log("4. Logic:", Date.now() - logicStart, "ms");
-
-      const start = (req as any)._apiStart || dbStart;
-      console.log("TOTAL:", Date.now() - start, "ms");
     } catch (error) {
       next(error);
     }
@@ -78,11 +69,7 @@ export class UsersController {
     }
   }
 
-  async updateStatus(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  async updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
       const validatedInput = updateStatusSchema.parse(req.body);
@@ -93,64 +80,44 @@ export class UsersController {
     }
   }
 
-  async assignTeam(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  async assignMembership(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
-      const validatedInput = assignTeamSchema.parse(req.body);
-      const user = await usersService.assignTeam(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Venture team assigned successfully');
+      const validatedInput = assignMembershipSchema.parse(req.body);
+      const user = await usersService.assignMembership(id, validatedInput, this.getRequester(req));
+      sendSuccess(res, user, 200, 'Organizational membership assigned successfully');
     } catch (error) {
       next(error);
     }
   }
 
-  async removeVenture(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  async removeMembership(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
       const ventureId = getRouteParam(req.params.ventureId);
-      const user = await usersService.removeVentureAssignment(
-        id,
-        ventureId,
-        this.getRequester(req)
-      );
-      sendSuccess(res, user, 200, 'Employee removed from venture');
+      const user = await usersService.removeMembership(id, ventureId, this.getRequester(req));
+      sendSuccess(res, user, 200, 'Removed from venture successfully');
     } catch (error) {
       next(error);
     }
   }
 
-  async assignSections(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  async assignSections(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
       const validatedInput = assignSectionsSchema.parse(req.body);
       const user = await usersService.assignSections(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Venture sections assigned successfully');
+      sendSuccess(res, user, 200, 'Section access assigned successfully');
     } catch (error) {
       next(error);
     }
   }
 
-  async resetPassword(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
       const validatedInput = resetPasswordSchema.parse(req.body);
-      await usersService.resetPassword(id, validatedInput, this.getRequester(req));
+      await usersService.resetPassword(id, validatedInput.newPassword, this.getRequester(req));
       sendSuccess(res, null, 200, 'Password reset successfully');
     } catch (error) {
       next(error);

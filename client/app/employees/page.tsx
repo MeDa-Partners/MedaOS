@@ -7,7 +7,9 @@ import {
   api,
   EmployeeResponseItem,
   Venture,
+  Department,
   Team,
+  Section,
   ApiError,
 } from '@/lib/api';
 import {
@@ -25,29 +27,30 @@ import {
   Sliders,
   Building2,
   Trash2,
-  Plus,
   Pencil,
+  Crown,
+  FolderTree,
+  Network,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function EmployeesPage() {
-  const {
-    user,
-    activeVenture,
-    activeTeam,
-    isAdmin,
-    ventures: userVentures,
-  } = useAuth();
+  const { isAdmin, departmentsLed, refreshUser, allVentures, allSections } = useAuth();
 
   const [employees, setEmployees] = useState<EmployeeResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedVentureFilter, setSelectedVentureFilter] = useState<string>('');
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
+  const [selectedVentureFilter, setSelectedVentureFilter] = useState('');
+  const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const [refreshCount, setRefreshCount] = useState(0);
 
-  // Available ventures & teams for dropdowns
+  // Dropdown resources
   const [availableVentures, setAvailableVentures] = useState<Venture[]>([]);
+  const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+  const [availableSections, setAvailableSections] = useState<Section[]>([]);
 
   // Notifications
   const [error, setError] = useState<string | null>(null);
@@ -60,31 +63,29 @@ export default function EmployeesPage() {
   const [resetPasswordUser, setResetPasswordUser] = useState<EmployeeResponseItem | null>(null);
   const [editingUser, setEditingUser] = useState<EmployeeResponseItem | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '' });
+  const [newPassword, setNewPassword] = useState('');
 
-  // Unified Manage Access Modal state
-  const [activeVentureTab, setActiveVentureTab] = useState<string>('');
-  const [confirmingRemoveVentureId, setConfirmingRemoveVentureId] = useState<string | null>(null);
-  const [editMembershipTeamId, setEditMembershipTeamId] = useState<string>('');
-  const [editMembershipSectionIds, setEditMembershipSectionIds] = useState<string[]>([]);
-  const [newVentureForm, setNewVentureForm] = useState({
-    ventureId: '',
-    teamId: '',
-    sectionIds: [] as string[],
-  });
-
-  // Create Modal form state
+  // Create Modal Form state
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
     password: '',
     ventureId: '',
+    departmentId: '',
+    teamId: '',
+    sectionIds: [] as string[],
+    status: 'active' as 'active' | 'inactive',
+  });
+
+  // Manage Membership Form state
+  const [membershipForm, setMembershipForm] = useState({
+    ventureId: '',
+    departmentId: '',
     teamId: '',
     sectionIds: [] as string[],
   });
 
-  const [newPassword, setNewPassword] = useState('');
-
-  // Auto-dismiss success message
+  // Auto-dismiss notification
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 4000);
@@ -92,74 +93,86 @@ export default function EmployeesPage() {
     }
   }, [successMessage]);
 
-  // Load dropdown resources
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadDropdowns() {
-      try {
-        const [vList, tList] = await Promise.all([
-          api.ventures.list(),
-          api.teams.list(),
-        ]);
-        if (isMounted) {
-          if (isAdmin) {
-            setAvailableVentures(vList);
-            setAvailableTeams(tList);
-          } else {
-            const allowedVIds = new Set(userVentures.map((m) => m.venture.id));
-            setAvailableVentures(vList.filter((v) => allowedVIds.has(v.id)));
-            setAvailableTeams(tList.filter((t) => allowedVIds.has(t.ventureId)));
-          }
-        }
-      } catch {
-        // Background fetch error
-      }
-    }
-
-    loadDropdowns();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAdmin, userVentures, activeVenture]);
-
-  const reloadEmployees = useCallback(() => {
-    console.log('[Employees Page] Refresh button clicked');
+  const reloadData = useCallback(() => {
     setLoading(true);
     setRefreshCount((c) => c + 1);
   }, []);
 
-  // Fetch employees list
+  const [dropdownRefreshKey, setDropdownRefreshKey] = useState(0);
+
+  const reloadDropdowns = useCallback(() => {
+    setDropdownRefreshKey((k) => k + 1);
+  }, []);
+
+  // Preload dropdown catalogs with resilient individual fetching and auth-context fallbacks
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchList() {
-      const clientStart = Date.now();
-      console.log('[Employees Page] API request started');
+    async function fetchDropdownCatalogs() {
       try {
-        const params: { search?: string; ventureId?: string; teamId?: string } = {};
-        if (search.trim()) params.search = search.trim();
-        if (selectedVentureFilter) params.ventureId = selectedVentureFilter;
-        if (selectedTeamFilter) params.teamId = selectedTeamFilter;
+        const [vRes, dRes, tRes, sRes] = await Promise.allSettled([
+          allVentures && allVentures.length > 0 ? Promise.resolve(allVentures) : api.ventures.list(),
+          api.departments.list(),
+          api.teams.list(),
+          allSections && allSections.length > 0 ? Promise.resolve(allSections) : api.sections.list(),
+        ]);
 
-        const data = await api.employees.list(params);
-        console.log('[Employees Page] TOTAL (Frontend roundtrip):', Date.now() - clientStart, 'ms');
+        if (!isMounted) return;
+
+        if (vRes.status === 'fulfilled' && Array.isArray(vRes.value) && vRes.value.length > 0) {
+          setAvailableVentures(vRes.value);
+        } else if (allVentures && allVentures.length > 0) {
+          setAvailableVentures(allVentures);
+        }
+
+        if (dRes.status === 'fulfilled' && Array.isArray(dRes.value)) {
+          setAvailableDepartments(dRes.value);
+        }
+
+        if (tRes.status === 'fulfilled' && Array.isArray(tRes.value)) {
+          setAvailableTeams(tRes.value);
+        }
+
+        if (sRes.status === 'fulfilled' && Array.isArray(sRes.value)) {
+          setAvailableSections(sRes.value);
+        } else if (allSections && allSections.length > 0) {
+          setAvailableSections(allSections);
+        }
+      } catch {
+        if (isMounted && allVentures && allVentures.length > 0) {
+          setAvailableVentures(allVentures);
+        }
+      }
+    }
+
+    fetchDropdownCatalogs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [dropdownRefreshKey, allVentures, allSections]);
+
+  // Fetch employee list (Strictly ordered: first created on top)
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchEmployees() {
+      try {
+        const res = await api.employees.list({
+          search: search || undefined,
+          ventureId: selectedVentureFilter || undefined,
+          departmentId: selectedDepartmentFilter || undefined,
+          teamId: selectedTeamFilter || undefined,
+          limit: 100,
+        });
+
         if (isMounted) {
-          // Strictly sort by creation date: first created on top, last created down the list
-          const sorted = [...data.users].sort((a, b) => {
-            const timeA = new Date(a.createdAt).getTime();
-            const timeB = new Date(b.createdAt).getTime();
-            if (timeA !== timeB) return timeA - timeB;
-            return a.id.localeCompare(b.id);
-          });
-          setEmployees(sorted);
+          setEmployees(res.users);
           setError(null);
         }
       } catch (err: unknown) {
-        console.log('[Employees Page] TOTAL (Frontend error):', Date.now() - clientStart, 'ms');
         if (isMounted) {
-          setError(err instanceof ApiError ? err.message : 'Failed to fetch employees');
+          setError(err instanceof ApiError ? err.message : 'Failed to load employees');
         }
       } finally {
         if (isMounted) {
@@ -168,280 +181,172 @@ export default function EmployeesPage() {
       }
     }
 
-    fetchList();
+    fetchEmployees();
 
     return () => {
       isMounted = false;
     };
-  }, [search, selectedVentureFilter, selectedTeamFilter, refreshCount]);
+  }, [search, selectedVentureFilter, selectedDepartmentFilter, selectedTeamFilter, refreshCount]);
 
-  // Handle Create Employee
-  const handleCreateEmployee = async (e: React.FormEvent) => {
+  // Handle Create User Submit
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!createForm.name.trim() || !createForm.email.trim() || !createForm.password) {
+      setError('Name, email, and password are required');
+      return;
+    }
+
+    if (createForm.ventureId && (!createForm.departmentId || !createForm.teamId)) {
+      setError('If assigning a venture, both department and team must be selected');
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
 
     try {
-      const targetVentureId = createForm.ventureId || activeVenture?.id;
-      const targetTeamId = createForm.teamId || activeTeam?.id;
-
       await api.employees.create({
-        name: createForm.name,
-        email: createForm.email,
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
         password: createForm.password,
-        ventureId: targetVentureId,
-        teamId: targetTeamId,
+        ventureId: createForm.ventureId || undefined,
+        departmentId: createForm.departmentId || undefined,
+        teamId: createForm.teamId || undefined,
         sectionIds: createForm.sectionIds,
+        status: createForm.status,
       });
 
-      setSuccessMessage(`Employee "${createForm.name}" created successfully`);
+      setSuccessMessage(`Employee "${createForm.name}" created successfully.`);
       setIsCreateOpen(false);
       setCreateForm({
         name: '',
         email: '',
         password: '',
         ventureId: '',
+        departmentId: '',
         teamId: '',
         sectionIds: [],
+        status: 'active',
       });
-      reloadEmployees();
+      reloadData();
+      refreshUser();
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to create employee');
-      }
+      setError(err instanceof ApiError ? err.message : 'Failed to create employee');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Edit User Details
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      await api.employees.update(editingUser.id, {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+      });
+
+      setSuccessMessage(`Employee details updated successfully.`);
+      setEditingUser(null);
+      reloadData();
+      refreshUser();
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update employee');
     } finally {
       setActionLoading(false);
     }
   };
 
   // Handle Status Toggle
-  const handleToggleStatus = async (emp: EmployeeResponseItem) => {
-    const newStatus = emp.status === 'active' ? 'inactive' : 'active';
+  const handleToggleStatus = async (employee: EmployeeResponseItem) => {
+    const nextStatus = employee.status === 'active' ? 'inactive' : 'active';
     setActionLoading(true);
-    setError(null);
-
     try {
-      const updated = await api.employees.updateStatus(emp.id, newStatus);
-      setSuccessMessage(`Employee status updated to ${newStatus}`);
-      // Update employee in-place so list order remains strictly unchanged
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      await api.employees.updateStatus(employee.id, nextStatus);
+      setSuccessMessage(`Employee status updated to ${nextStatus}.`);
+      reloadData();
+      refreshUser();
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to update status');
-      }
+      setError(err instanceof ApiError ? err.message : 'Failed to change status');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle Edit Employee Details
-  const openEditModal = (emp: EmployeeResponseItem) => {
-    setEditingUser(emp);
-    setEditForm({ name: emp.name, email: emp.email });
-  };
-
-  const handleUpdateEmployee = async (e: React.FormEvent) => {
+  // Handle Password Reset
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      const updated = await api.employees.update(editingUser.id, {
-        name: editForm.name.trim(),
-        email: editForm.email.trim(),
-      });
-      setSuccessMessage(`Employee "${updated.name}" details updated successfully`);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      if (managingUser && managingUser.id === updated.id) {
-        setManagingUser(updated);
-      }
-      setEditingUser(null);
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to update employee details');
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Open Unified Manage Access Modal
-  const openManageModal = (emp: EmployeeResponseItem, preferredVentureId?: string) => {
-    setManagingUser(emp);
-    setConfirmingRemoveVentureId(null);
-
-    let initialTab = '';
-    if (preferredVentureId === 'new') {
-      initialTab = 'new';
-    } else if (preferredVentureId && emp.ventures.some((v) => v.ventureId === preferredVentureId)) {
-      initialTab = preferredVentureId;
-    } else if (emp.ventures.length > 0) {
-      initialTab = emp.ventures[0].ventureId;
-    } else {
-      initialTab = 'new';
-    }
-
-    setActiveVentureTab(initialTab);
-
-    if (initialTab !== 'new') {
-      const mem = emp.ventures.find((v) => v.ventureId === initialTab);
-      setEditMembershipTeamId(mem?.teamId || '');
-      setEditMembershipSectionIds(mem?.sections.map((s) => s.id) || []);
-    } else {
-      const assignedIds = new Set(emp.ventures.map((v) => v.ventureId));
-      const firstUnassigned = availableVentures.find((v) => !assignedIds.has(v.id));
-      const firstTeam = availableTeams.find((t) => t.ventureId === firstUnassigned?.id);
-      setNewVentureForm({
-        ventureId: firstUnassigned?.id || '',
-        teamId: firstTeam?.id || '',
-        sectionIds: [],
-      });
-    }
-  };
-
-  const selectVentureTab = (vId: string) => {
-    setActiveVentureTab(vId);
-    setConfirmingRemoveVentureId(null);
-
-    if (vId !== 'new' && managingUser) {
-      const mem = managingUser.ventures.find((v) => v.ventureId === vId);
-      setEditMembershipTeamId(mem?.teamId || '');
-      setEditMembershipSectionIds(mem?.sections.map((s) => s.id) || []);
-    } else if (managingUser) {
-      const assignedIds = new Set(managingUser.ventures.map((v) => v.ventureId));
-      const firstUnassigned = availableVentures.find((v) => !assignedIds.has(v.id));
-      const firstTeam = availableTeams.find((t) => t.ventureId === firstUnassigned?.id);
-      setNewVentureForm({
-        ventureId: firstUnassigned?.id || '',
-        teamId: firstTeam?.id || '',
-        sectionIds: [],
-      });
-    }
-  };
-
-  // Handle Save Team Assignment in modal
-  const handleSaveTeamInModal = async () => {
-    if (!managingUser || !activeVentureTab) return;
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      const updated = await api.employees.assignTeam(managingUser.id, {
-        ventureId: activeVentureTab,
-        teamId: editMembershipTeamId,
-      });
-
-      setManagingUser(updated);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      const vName =
-        updated.ventures.find((v) => v.ventureId === activeVentureTab)?.ventureName || 'venture';
-      setSuccessMessage(`Updated team in ${vName} for ${updated.name}`);
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update team assignment');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Handle Save Section Permissions in modal
-  const handleSaveSectionsInModal = async () => {
-    if (!managingUser || !activeVentureTab) return;
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      const updated = await api.employees.assignSections(managingUser.id, {
-        ventureId: activeVentureTab,
-        sectionIds: editMembershipSectionIds,
-      });
-
-      setManagingUser(updated);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      const vName =
-        updated.ventures.find((v) => v.ventureId === activeVentureTab)?.ventureName || 'venture';
-      setSuccessMessage(`Updated section access in ${vName} for ${updated.name}`);
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update section access');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Handle Save All Changes (both Team and Section Permissions) for the active venture
-  const handleSaveAllVentureChanges = async () => {
-    if (!managingUser || !activeVentureTab) return;
-    const currentMem = managingUser.ventures.find((v) => v.ventureId === activeVentureTab);
-    if (!currentMem) return;
-
-    const teamChanged = editMembershipTeamId !== currentMem.teamId;
-    const currentSectionSet = new Set(currentMem.sections.map((s) => s.id));
-    const newSectionSet = new Set(editMembershipSectionIds);
-    const sectionsChanged =
-      currentSectionSet.size !== newSectionSet.size ||
-      [...currentSectionSet].some((id) => !newSectionSet.has(id));
-
-    if (!teamChanged && !sectionsChanged) return;
+    if (!resetPasswordUser || !newPassword) return;
 
     setActionLoading(true);
     setError(null);
 
     try {
-      let updated = managingUser;
-
-      if (teamChanged) {
-        updated = await api.employees.assignTeam(managingUser.id, {
-          ventureId: activeVentureTab,
-          teamId: editMembershipTeamId,
-        });
-      }
-
-      if (sectionsChanged) {
-        updated = await api.employees.assignSections(managingUser.id, {
-          ventureId: activeVentureTab,
-          sectionIds: editMembershipSectionIds,
-        });
-      }
-
-      setManagingUser(updated);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      const vName =
-        updated.ventures.find((v) => v.ventureId === activeVentureTab)?.ventureName || 'venture';
-      setSuccessMessage(`Successfully updated ${vName} team and access permissions for ${updated.name}`);
+      await api.employees.resetPassword(resetPasswordUser.id, newPassword);
+      setSuccessMessage(`Password reset successfully for ${resetPasswordUser.name}.`);
+      setResetPasswordUser(null);
+      setNewPassword('');
     } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save venture settings');
+      setError(err instanceof ApiError ? err.message : 'Failed to reset password');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle Remove Venture Assignment from User
-  const handleRemoveVentureFromUser = async (ventureId: string) => {
+  // Handle Assign Membership Submit
+  const handleMembershipSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!managingUser) return;
+    if (!membershipForm.ventureId || !membershipForm.departmentId || !membershipForm.teamId) {
+      setError('Venture, Department, and Team are all required for membership');
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
 
     try {
-      const updated = await api.employees.removeVenture(managingUser.id, ventureId);
-      const removedVentureName =
-        managingUser.ventures.find((v) => v.ventureId === ventureId)?.ventureName || 'venture';
+      // 1. Assign membership (Venture + Dept + Team)
+      await api.employees.assignMembership(managingUser.id, {
+        ventureId: membershipForm.ventureId,
+        departmentId: membershipForm.departmentId,
+        teamId: membershipForm.teamId,
+      });
 
-      setManagingUser(updated);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      setSuccessMessage(`Removed ${managingUser.name} from ${removedVentureName}`);
-      setConfirmingRemoveVentureId(null);
+      // 2. Assign sections for this venture
+      await api.employees.assignSections(managingUser.id, {
+        ventureId: membershipForm.ventureId,
+        sectionIds: membershipForm.sectionIds,
+      });
 
-      if (updated.ventures.length > 0) {
-        selectVentureTab(updated.ventures[0].ventureId);
-      } else {
-        selectVentureTab('new');
-      }
+      setSuccessMessage(`Organizational membership and section access updated for ${managingUser.name}.`);
+      setManagingUser(null);
+      reloadData();
+      refreshUser();
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to assign membership');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Remove Membership from a Venture
+  const handleRemoveMembership = async (ventureId: string) => {
+    if (!managingUser) return;
+    if (!confirm('Are you sure you want to remove this employee from this venture?')) return;
+
+    setActionLoading(true);
+    try {
+      await api.employees.removeMembership(managingUser.id, ventureId);
+      setSuccessMessage(`Removed from venture successfully.`);
+      setManagingUser(null);
+      reloadData();
+      refreshUser();
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Failed to remove from venture');
     } finally {
@@ -449,564 +354,603 @@ export default function EmployeesPage() {
     }
   };
 
-  // Handle Assign to New Venture in modal
-  const handleAssignNewVentureInModal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!managingUser || !newVentureForm.ventureId || !newVentureForm.teamId) return;
+  // Filter departments & teams for form cascading selects
+  const createDepts = createForm.ventureId
+    ? availableDepartments.filter((d) => d.ventureId === createForm.ventureId)
+    : availableDepartments;
 
-    setActionLoading(true);
-    setError(null);
+  const createTeams = createForm.departmentId
+    ? availableTeams.filter((t) => t.departmentId === createForm.departmentId)
+    : [];
 
-    try {
-      let updated = await api.employees.assignTeam(managingUser.id, {
-        ventureId: newVentureForm.ventureId,
-        teamId: newVentureForm.teamId,
-      });
+  const createSections = createForm.departmentId
+    ? availableSections.filter((s) => s.departmentId === createForm.departmentId)
+    : [];
 
-      if (newVentureForm.sectionIds.length > 0) {
-        updated = await api.employees.assignSections(managingUser.id, {
-          ventureId: newVentureForm.ventureId,
-          sectionIds: newVentureForm.sectionIds,
-        });
-      }
+  const manageDepts = membershipForm.ventureId
+    ? availableDepartments.filter((d) => d.ventureId === membershipForm.ventureId)
+    : availableDepartments;
 
-      setManagingUser(updated);
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      const vName =
-        updated.ventures.find((v) => v.ventureId === newVentureForm.ventureId)?.ventureName || 'venture';
-      setSuccessMessage(`Assigned ${updated.name} to ${vName} successfully`);
-      selectVentureTab(newVentureForm.ventureId);
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : 'Failed to assign venture');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const manageTeams = membershipForm.departmentId
+    ? availableTeams.filter((t) => t.departmentId === membershipForm.departmentId)
+    : [];
 
-  // Handle Reset Password
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetPasswordUser) return;
-
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      await api.employees.resetPassword(resetPasswordUser.id, newPassword);
-      setSuccessMessage(`Password reset successfully for ${resetPasswordUser.name}`);
-      setResetPasswordUser(null);
-      setNewPassword('');
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to reset password');
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Sections enabled for the venture selected in create form
-  const selectedCreateVentureId =
-    createForm.ventureId || activeVenture?.id || availableVentures[0]?.id || '';
-  const currentCreateVenture = availableVentures.find((v) => v.id === selectedCreateVentureId);
-  const createVentureSections = currentCreateVenture?.sections || [];
+  const manageSections = membershipForm.departmentId
+    ? availableSections.filter((s) => s.departmentId === membershipForm.departmentId)
+    : [];
 
   return (
-    <AppShell
-      requireEmployeeManagement={true}
-      title="Employee Management"
-      description="Manage personnel records, organizational team assignments, and section access within your scope."
-    >
-      <div className="space-y-6">
-        {/* Scope Context Banner */}
-        <div className="bg-white border border-[#e4e4e7] rounded-xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#fafafa] border border-[#e4e4e7] flex items-center justify-center text-[#18181b] shrink-0">
-              <Users className="w-5 h-5 text-[#09090b]" />
+    <AppShell>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#e4e4e7]">
+          <div>
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#18181b]" />
+              <h1 className="text-xl font-bold text-[#09090b]">Employee Management</h1>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[#09090b]">
-                  {isAdmin ? 'System-Wide Employee Directory' : `${activeVenture?.name || 'Venture'} Directory`}
-                </span>
-                <span
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                    isAdmin
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}
-                >
-                  {isAdmin ? 'Full Authority' : `Scoped: ${activeTeam?.name || 'Team'}`}
-                </span>
-              </div>
-              <p className="text-xs text-[#71717a] mt-0.5">
-                {isAdmin
-                  ? 'As an Administrator, you can view, create, and manage employee records across all ventures.'
-                  : `You have Employee Management access for ${activeTeam?.name || 'your'} team in ${activeVenture?.name || 'this venture'}.`}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              const defaultVId = activeVenture?.id || availableVentures[0]?.id || '';
-              const defaultTeam = availableTeams.find((t) => t.ventureId === defaultVId);
-              setCreateForm({
-                name: '',
-                email: '',
-                password: '',
-                ventureId: defaultVId,
-                teamId: activeTeam?.ventureId === defaultVId ? activeTeam.id : defaultTeam?.id || '',
-                sectionIds: [],
-              });
-              setIsCreateOpen(true);
-            }}
-            className="px-3.5 py-2 text-xs font-medium bg-[#09090b] text-white rounded-lg hover:bg-black transition-all flex items-center gap-2 shadow-xs shrink-0"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Add Employee</span>
-          </button>
-        </div>
-
-        {/* Feedback Alerts */}
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-        )}
-
-        {/* Filter & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-[#a1a1aa] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
-            />
+            <p className="text-xs text-[#71717a] mt-1">
+              Manage accounts, venture assignments, departments, teams, and section-level access.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {isAdmin && availableVentures.length > 0 && (
-              <select
-                value={selectedVentureFilter}
-                onChange={(e) => setSelectedVentureFilter(e.target.value)}
-                className="px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden text-[#18181b]"
-              >
-                <option value="">All Ventures</option>
-                {availableVentures.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {availableTeams.length > 0 && (
-              <select
-                value={selectedTeamFilter}
-                onChange={(e) => setSelectedTeamFilter(e.target.value)}
-                className="px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden text-[#18181b]"
-              >
-                <option value="">All Teams</option>
-                {availableTeams
-                  .filter((t) => !selectedVentureFilter || t.ventureId === selectedVentureFilter)
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-              </select>
-            )}
+            <button
+              onClick={reloadData}
+              disabled={loading}
+              className="p-2 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
 
             <button
-              type="button"
-              onClick={reloadEmployees}
-              className="p-2 text-[#71717a] hover:text-[#09090b] hover:bg-white border border-transparent hover:border-[#e4e4e7] rounded-lg transition-all"
-              title="Refresh list"
+              onClick={() => {
+                setError(null);
+                // Pre-fill department if user is a department head
+                let prefillVenture = '';
+                let prefillDept = '';
+                if (!isAdmin && departmentsLed.length > 0) {
+                  const myDept = availableDepartments.find((d) => d.id === departmentsLed[0]);
+                  if (myDept) {
+                    prefillVenture = myDept.ventureId;
+                    prefillDept = myDept.id;
+                  }
+                }
+                setCreateForm({
+                  name: '',
+                  email: '',
+                  password: '',
+                  ventureId: prefillVenture,
+                  departmentId: prefillDept,
+                  teamId: '',
+                  sectionIds: [],
+                  status: 'active',
+                });
+                setIsCreateOpen(true);
+              }}
+              className="px-3.5 py-2 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <UserPlus className="w-4 h-4" />
+              <span>Add Employee</span>
             </button>
           </div>
         </div>
 
-        {/* Employees Table */}
-        <div className="bg-white border border-[#e4e4e7] rounded-xl shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#fafafa] border-b border-[#e4e4e7] text-[#71717a] font-medium">
-                <tr>
-                  <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Venture Memberships</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f0f0f2]">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-[#71717a]">
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#09090b]" />
-                        <span>Loading directory records...</span>
-                      </div>
-                    </td>
+        {/* Notifications */}
+        {error && (
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1 font-medium">{error}</div>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            <div className="flex-1 font-medium">{successMessage}</div>
+            <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-[#e4e4e7] shadow-xs">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#a1a1aa]" />
+            <input
+              type="text"
+              placeholder="Search by name, email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedVentureFilter}
+              onChange={(e) => {
+                setSelectedVentureFilter(e.target.value);
+                setSelectedDepartmentFilter('');
+                setSelectedTeamFilter('');
+              }}
+              className="px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+            >
+              <option value="">All Ventures</option>
+              {availableVentures.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedDepartmentFilter}
+              onChange={(e) => {
+                setSelectedDepartmentFilter(e.target.value);
+                setSelectedTeamFilter('');
+              }}
+              className="px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+            >
+              <option value="">All Departments</option>
+              {availableDepartments
+                .filter((d) => !selectedVentureFilter || d.ventureId === selectedVentureFilter)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.ventureName})
+                  </option>
+                ))}
+            </select>
+
+            <select
+              value={selectedTeamFilter}
+              onChange={(e) => setSelectedTeamFilter(e.target.value)}
+              className="px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+            >
+              <option value="">All Teams</option>
+              {availableTeams
+                .filter(
+                  (t) =>
+                    !selectedDepartmentFilter || t.departmentId === selectedDepartmentFilter
+                )
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Employee List Table */}
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-[#71717a]">
+            <Loader2 className="w-6 h-6 animate-spin mb-2" />
+            <span className="text-xs">Loading employees...</span>
+          </div>
+        ) : employees.length === 0 ? (
+          <div className="py-16 text-center bg-white border border-[#e4e4e7] rounded-xl p-8 shadow-xs">
+            <Users className="w-10 h-10 text-[#a1a1aa] mx-auto mb-3" />
+            <h3 className="text-sm font-semibold text-[#09090b]">No employees found</h3>
+            <p className="text-xs text-[#71717a] mt-1 max-w-sm mx-auto">
+              {search || selectedVentureFilter || selectedDepartmentFilter || selectedTeamFilter
+                ? 'Try adjusting your search filters.'
+                : 'Create your first employee account to grant organizational access.'}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white border border-[#e4e4e7] rounded-xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#e4e4e7] bg-[#fafafa] text-[#71717a] font-mono uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Organizational Memberships</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
-                ) : employees.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-[#71717a]">
-                      No employee records found matching criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  employees.map((emp) => (
+                </thead>
+                <tbody className="divide-y divide-[#f0f0f2]">
+                  {employees.map((emp) => (
                     <tr key={emp.id} className="hover:bg-[#fafafa] transition-colors">
                       {/* Name & Email */}
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4 align-top">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-[#f4f4f5] border border-[#e4e4e7] flex items-center justify-center font-semibold text-[11px] text-[#18181b] shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#18181b] text-white font-semibold text-xs flex items-center justify-center shrink-0">
                             {emp.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="flex items-center gap-1.5 font-medium text-[#09090b]">
+                            <div className="font-medium text-[#09090b] flex items-center gap-1.5">
                               <span>{emp.name}</span>
                               {emp.isAdmin && (
-                                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded-sm border border-blue-200 font-mono">
-                                  Admin
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-mono">
+                                  <ShieldCheck className="w-3 h-3 text-blue-600" />
+                                  Global Admin
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-[#71717a] font-mono">
-                              {emp.email}
-                            </div>
+                            <div className="text-[11px] text-[#71717a]">{emp.email}</div>
                           </div>
-                        </div>
-                      </td>
-
-                      {/* Venture Memberships */}
-                      <td className="py-3 px-4">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {emp.ventures.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => openManageModal(emp, 'new')}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-zinc-600 hover:text-black bg-zinc-50 hover:bg-zinc-100 border border-dashed border-zinc-300 transition-all cursor-pointer"
-                              title="Click to assign to a venture"
-                            >
-                              <Plus className="w-3 h-3 text-zinc-500" />
-                              <span>Assign to Venture</span>
-                            </button>
-                          ) : (
-                            <>
-                              {emp.ventures.map((m) => (
-                                <button
-                                  key={m.ventureId}
-                                  type="button"
-                                  onClick={() => openManageModal(emp, m.ventureId)}
-                                  className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#fafafa] hover:bg-white text-[11px] border border-[#e4e4e7] hover:border-[#a1a1aa] transition-all text-left shadow-2xs hover:shadow-xs cursor-pointer"
-                                  title={`Click to manage ${m.ventureName} team and access or remove`}
-                                >
-                                  <Building2 className="w-3 h-3 text-[#71717a] group-hover:text-black" />
-                                  <span className="font-semibold text-[#18181b]">
-                                    {m.ventureName}:
-                                  </span>
-                                  <span className="bg-[#f4f4f5] text-[#52525b] px-1.5 py-0.2 rounded-xs border border-[#e4e4e7] text-[10px]">
-                                    {m.teamName}
-                                  </span>
-                                  <span className="text-[#a1a1aa] text-[10px]">
-                                    ({m.sections.length} {m.sections.length === 1 ? 'sec' : 'secs'})
-                                  </span>
-                                </button>
-                              ))}
-
-                              {/* Quick + Add Venture button if employee isn't in all ventures */}
-                              {availableVentures.some(
-                                (v) => !emp.ventures.some((m) => m.ventureId === v.id)
-                              ) && (
-                                <button
-                                  type="button"
-                                  onClick={() => openManageModal(emp, 'new')}
-                                  className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] text-[#71717a] hover:text-black hover:bg-zinc-100 border border-transparent hover:border-zinc-300 transition-all cursor-pointer"
-                                  title="Assign another venture"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  <span>Add</span>
-                                </button>
-                              )}
-                            </>
-                          )}
                         </div>
                       </td>
 
                       {/* Status */}
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4 align-top">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono capitalize ${
                             emp.status === 'active'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
                           }`}
                         >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              emp.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-400'
-                            }`}
-                          />
-                          {emp.status === 'active' ? 'Active' : 'Inactive'}
+                          {emp.status}
                         </span>
                       </td>
 
+                      {/* Memberships: Venture -> Department -> Team -> Sections */}
+                      <td className="py-3.5 px-4 align-top">
+                        {emp.isAdmin ? (
+                          <div className="text-[11px] text-[#71717a] italic">
+                            System-wide Global Administrator (Access across all ventures)
+                          </div>
+                        ) : emp.ventures.length === 0 ? (
+                          <span className="text-[11px] text-[#a1a1aa] italic">
+                            No ventures assigned
+                          </span>
+                        ) : (
+                          <div className="space-y-2 max-w-md">
+                            {emp.ventures.map((v) => (
+                              <div
+                                key={v.ventureId}
+                                className="bg-[#fafafa] border border-[#e4e4e7] rounded-lg p-2.5 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-2 font-medium text-[#09090b]">
+                                  <div className="flex items-center gap-1.5">
+                                    <Building2 className="w-3 h-3 text-[#71717a]" />
+                                    <span>{v.ventureName}</span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#52525b]">
+                                  <span className="flex items-center gap-1">
+                                    <FolderTree className="w-3 h-3 text-[#71717a]" />
+                                    <span className="font-medium text-[#09090b]">{v.departmentName}</span>
+                                    {v.isDepartmentHead && (
+                                      <span title="Department Head">
+                                        <Crown className="w-3 h-3 text-amber-500 inline" />
+                                      </span>
+                                    )}
+                                  </span>
+
+                                  <span className="text-[#d4d4d8]">•</span>
+
+                                  <span className="flex items-center gap-1">
+                                    <Network className="w-3 h-3 text-[#71717a]" />
+                                    <span>{v.teamName}</span>
+                                    {v.isTeamHead && (
+                                      <span title="Team Head">
+                                        <Crown className="w-3 h-3 text-blue-500 inline" />
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+
+                                {/* Assigned Sections */}
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {v.sections.length === 0 ? (
+                                    <span className="text-[10px] text-[#a1a1aa] italic">
+                                      No sections assigned
+                                    </span>
+                                  ) : (
+                                    v.sections.map((sec) => (
+                                      <span
+                                        key={sec.id}
+                                        className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 bg-white border border-[#e4e4e7] rounded text-[#09090b]"
+                                      >
+                                        <Layers className="w-2.5 h-2.5 text-[#71717a]" />
+                                        {sec.name}
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Manage Access Button */}
+                          {!emp.isAdmin && (
+                            <button
+                              onClick={() => {
+                                setManagingUser(emp);
+                                if (availableVentures.length === 0) {
+                                  reloadDropdowns();
+                                }
+                                const firstMembership = emp.ventures[0];
+                                setMembershipForm({
+                                  ventureId: firstMembership?.ventureId || '',
+                                  departmentId: firstMembership?.departmentId || '',
+                                  teamId: firstMembership?.teamId || '',
+                                  sectionIds: firstMembership?.sections.map((s) => s.id) || [],
+                                });
+                              }}
+                              className="px-2.5 py-1 text-xs bg-white hover:bg-[#f4f4f5] text-[#09090b] border border-[#e4e4e7] rounded-md transition-colors flex items-center gap-1 font-medium shadow-2xs"
+                              title="Manage Membership & Sections"
+                            >
+                              <Sliders className="w-3 h-3 text-[#71717a]" />
+                              <span>Access</span>
+                            </button>
+                          )}
+
+                          {/* Edit Details */}
                           <button
-                            type="button"
-                            onClick={() => openEditModal(emp)}
-                            className="p-1 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] rounded-md transition-colors"
-                            title="Edit employee details (name, email)"
+                            onClick={() => {
+                              setEditingUser(emp);
+                              setEditForm({ name: emp.name, email: emp.email });
+                            }}
+                            className="p-1.5 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-transparent hover:border-[#e4e4e7] rounded-md transition-colors"
+                            title="Edit Name & Email"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Reset Password */}
                           <button
-                            type="button"
-                            onClick={() => openManageModal(emp)}
-                            className="px-2.5 py-1 text-[11px] font-medium bg-[#09090b] hover:bg-black text-white rounded-md transition-all flex items-center gap-1.5 shadow-2xs"
-                            title="Manage venture teams, sections, and remove from ventures"
-                          >
-                            <Sliders className="w-3 h-3" />
-                            <span>Access & Teams</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setResetPasswordUser(emp)}
-                            className="p-1 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] rounded-md transition-colors"
-                            title="Reset password"
+                            onClick={() => {
+                              setResetPasswordUser(emp);
+                              setNewPassword('');
+                            }}
+                            className="p-1.5 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] border border-transparent hover:border-[#e4e4e7] rounded-md transition-colors"
+                            title="Reset Password"
                           >
                             <KeyRound className="w-3.5 h-3.5" />
                           </button>
 
-                          {emp.id !== user?.id && !emp.isAdmin && (
+                          {/* Toggle Active / Inactive */}
+                          {!emp.isAdmin && (
                             <button
-                              type="button"
                               onClick={() => handleToggleStatus(emp)}
-                              className="p-1 text-[#71717a] hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              className={`p-1.5 border border-transparent hover:border-[#e4e4e7] rounded-md transition-colors ${
+                                emp.status === 'active'
+                                  ? 'text-red-600 hover:bg-red-50'
+                                  : 'text-emerald-600 hover:bg-emerald-50'
+                              }`}
                               title={emp.status === 'active' ? 'Deactivate user' : 'Activate user'}
                             >
                               {emp.status === 'active' ? (
-                                <UserX className="w-3.5 h-3.5 text-red-500" />
+                                <UserX className="w-3.5 h-3.5" />
                               ) : (
-                                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                <UserCheck className="w-3.5 h-3.5" />
                               )}
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* CREATE EMPLOYEE MODAL */}
+      {/* Create Employee Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-md w-full p-6 shadow-xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-[#f0f0f2]">
-              <div>
-                <h3 className="text-sm font-semibold text-[#09090b]">Add New Employee</h3>
-                <p className="text-xs text-[#71717a]">
-                  Create employee credentials and assign initial venture/team.
-                </p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in overflow-y-auto">
+          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-lg w-full shadow-xl p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
+              <h3 className="text-sm font-semibold text-[#09090b]">Add Employee Account</h3>
               <button
-                type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="p-1 text-[#71717a] hover:text-[#09090b] rounded-lg"
+                className="text-[#71717a] hover:text-[#09090b]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEmployee} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rahul Sharma"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
-                />
+            <form onSubmit={handleCreateSubmit} className="space-y-4 pt-4">
+              {/* Name & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[#18181b] mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sunil Mehta"
+                    value={createForm.name}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#18181b] mb-1">
+                    Email (Login ID) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="sunil@meda.com"
+                    value={createForm.email}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  />
+                </div>
               </div>
 
+              {/* Password */}
               <div>
                 <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. rahul@meda.com"
-                  value={createForm.email}
-                  onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  Initial Password
+                  Initial Password *
                 </label>
                 <input
                   type="password"
                   required
                   placeholder="Minimum 8 characters"
                   value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
                 />
               </div>
 
-              {/* Venture & Team selection */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-[#18181b] mb-1">
-                    Venture
-                  </label>
-                  <select
-                    value={createForm.ventureId || activeVenture?.id || ''}
-                    disabled={!isAdmin && availableVentures.length <= 1}
-                    onChange={(e) => {
-                      const newVId = e.target.value;
-                      const newVenture = availableVentures.find((v) => v.id === newVId);
-                      const validSecIds = new Set(newVenture?.sections?.map((s) => s.id) || []);
-                      const defaultTeamForV = availableTeams.find((t) => t.ventureId === newVId);
-                      setCreateForm({
-                        ...createForm,
-                        ventureId: newVId,
-                        teamId: defaultTeamForV?.id || '',
-                        sectionIds: createForm.sectionIds.filter((id) => validSecIds.has(id)),
-                      });
-                    }}
-                    className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden disabled:bg-[#fafafa]"
-                  >
-                    {availableVentures.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
+              <div className="pt-2 border-t border-[#f0f0f2]">
+                <div className="text-xs font-semibold text-[#09090b] mb-2 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Organizational Assignment (Optional at creation)</span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-[#18181b] mb-1">
-                    Team
-                  </label>
-                  <select
-                    value={createForm.teamId || activeTeam?.id || ''}
-                    disabled={!isAdmin}
-                    onChange={(e) => setCreateForm({ ...createForm, teamId: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden disabled:bg-[#fafafa]"
-                  >
-                    {isAdmin ? (
-                      availableTeams
-                        .filter((t) => t.ventureId === (createForm.ventureId || activeVenture?.id))
-                        .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))
-                    ) : (
-                      <option value={activeTeam?.id}>{activeTeam?.name}</option>
-                    )}
-                  </select>
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Venture */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#71717a] mb-1">
+                      Venture
+                    </label>
+                    <select
+                      value={createForm.ventureId}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          ventureId: e.target.value,
+                          departmentId: '',
+                          teamId: '',
+                          sectionIds: [],
+                        }))
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    >
+                      <option value="">None</option>
+                      {(availableVentures.length > 0 ? availableVentures : allVentures).map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Initial Sections Checklist */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-[#18181b]">
-                    Initial Section Access
-                  </label>
-                  <span className="text-[10px] text-[#71717a]">
-                    {currentCreateVenture ? `Enabled for ${currentCreateVenture.name}` : ''}
-                  </span>
+                  {/* Department */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#71717a] mb-1">
+                      Department
+                    </label>
+                    <select
+                      value={createForm.departmentId}
+                      disabled={!createForm.ventureId}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          departmentId: e.target.value,
+                          teamId: '',
+                          sectionIds: [],
+                        }))
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b] disabled:opacity-50"
+                    >
+                      <option value="">Select Dept...</option>
+                      {createDepts.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Team */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#71717a] mb-1">
+                      Team
+                    </label>
+                    <select
+                      value={createForm.teamId}
+                      disabled={!createForm.departmentId}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, teamId: e.target.value }))
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b] disabled:opacity-50"
+                    >
+                      <option value="">Select Team...</option>
+                      {createTeams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="p-3 bg-[#fafafa] border border-[#e4e4e7] rounded-lg max-h-36 overflow-y-auto space-y-2">
-                  {createVentureSections.length === 0 ? (
-                    <div className="text-xs text-[#71717a] py-2 text-center">
-                      No sections are currently enabled for this venture.
-                    </div>
-                  ) : (
-                    createVentureSections
-                      .filter((s) => isAdmin || s.slug !== 'employees')
-                      .map((s) => (
-                        <label key={s.id} className="flex items-center justify-between text-xs text-[#18181b] cursor-pointer hover:bg-white p-1 rounded transition-colors">
-                          <div className="flex items-center gap-2">
+
+                {/* Section checkboxes for chosen department */}
+                {createForm.departmentId && createSections.length > 0 && (
+                  <div className="mt-3.5 pt-3 border-t border-[#f0f0f2]">
+                    <label className="block text-[11px] font-medium text-[#71717a] mb-1.5">
+                      Assigned Sections in this Department:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1 bg-[#fafafa] rounded-md border border-[#e4e4e7]">
+                      {createSections.map((sec) => {
+                        const checked = createForm.sectionIds.includes(sec.id);
+                        return (
+                          <label
+                            key={sec.id}
+                            className="flex items-center gap-2 p-1.5 hover:bg-white rounded cursor-pointer text-xs"
+                          >
                             <input
                               type="checkbox"
-                              checked={createForm.sectionIds.includes(s.id)}
+                              checked={checked}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setCreateForm({
-                                    ...createForm,
-                                    sectionIds: [...createForm.sectionIds, s.id],
-                                  });
+                                  setCreateForm((prev) => ({
+                                    ...prev,
+                                    sectionIds: [...prev.sectionIds, sec.id],
+                                  }));
                                 } else {
-                                  setCreateForm({
-                                    ...createForm,
-                                    sectionIds: createForm.sectionIds.filter((id) => id !== s.id),
-                                  });
+                                  setCreateForm((prev) => ({
+                                    ...prev,
+                                    sectionIds: prev.sectionIds.filter((id) => id !== sec.id),
+                                  }));
                                 }
                               }}
-                              className="rounded-xs border-[#e4e4e7] text-black focus:ring-black"
+                              className="rounded border-[#d4d4d8] text-[#09090b] focus:ring-0"
                             />
-                            <span className="capitalize font-medium">{s.name}</span>
-                          </div>
-                          <span className="text-[10px] text-[#71717a] font-mono">{s.route}</span>
-                        </label>
-                      ))
-                  )}
-                </div>
+                            <span className="truncate">{sec.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-[#f0f0f2]">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#f0f0f2]">
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="px-3 py-1.5 text-xs text-[#52525b] hover:bg-[#f4f4f5] rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] rounded-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-3.5 py-1.5 text-xs font-medium bg-[#09090b] text-white rounded-lg hover:bg-black transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
+                  className="px-3.5 py-1.5 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Save Employee</span>
+                  {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Create Account</span>
                 </button>
               </div>
             </form>
@@ -1014,597 +958,93 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* UNIFIED MANAGE ACCESS & VENTURES MODAL */}
-      {managingUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-xl w-full p-6 shadow-xl animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-[#f0f0f2] shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#fafafa] border border-[#e4e4e7] flex items-center justify-center text-[#18181b] shrink-0 font-semibold text-sm">
-                  {managingUser.name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')
-                    .toUpperCase()
-                    .slice(0, 2)}
-                </div>
-                <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-[#09090b]">
-                        {managingUser.name}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(managingUser)}
-                        className="p-1 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] rounded-md transition-colors"
-                        title="Edit employee details"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <span
-                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                          managingUser.status === 'active'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-zinc-100 text-zinc-600 border-zinc-200'
-                        }`}
-                      >
-                        {managingUser.status}
-                      </span>
-                      {managingUser.isAdmin && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                          Admin
-                        </span>
-                      )}
-                    </div>
-                  <p className="text-xs text-[#71717a] font-mono mt-0.5">
-                    {managingUser.email}
-                  </p>
-                </div>
-              </div>
+      {/* Edit Details Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-sm w-full shadow-xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
+              <h3 className="text-sm font-semibold text-[#09090b]">Edit Employee Details</h3>
               <button
-                type="button"
-                onClick={() => {
-                  setManagingUser(null);
-                  setConfirmingRemoveVentureId(null);
-                }}
-                className="p-1.5 text-[#71717a] hover:text-[#09090b] hover:bg-[#f4f4f5] rounded-lg transition-colors"
+                onClick={() => setEditingUser(null)}
+                className="text-[#71717a] hover:text-[#09090b]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Segmented Venture Tabs */}
-            <div className="pt-3 pb-2 border-b border-[#f0f0f2] shrink-0 flex items-center gap-1.5 overflow-x-auto">
-              {managingUser.ventures.map((m) => {
-                const isActive = activeVentureTab === m.ventureId;
-                return (
-                  <button
-                    key={m.ventureId}
-                    type="button"
-                    onClick={() => selectVentureTab(m.ventureId)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
-                      isActive
-                        ? 'bg-[#09090b] text-white shadow-xs'
-                        : 'bg-[#fafafa] text-[#52525b] hover:bg-[#f4f4f5] border border-[#e4e4e7]'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>{m.ventureName}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-xs font-normal ${
-                        isActive
-                          ? 'bg-white/20 text-white'
-                          : 'bg-[#e4e4e7] text-[#3f3f46]'
-                      }`}
-                    >
-                      {m.teamName}
-                    </span>
-                  </button>
-                );
-              })}
-
-              {/* Show "+ Assign Venture" tab if there are unassigned ventures */}
-              {availableVentures.some(
-                (v) => !managingUser.ventures.some((m) => m.ventureId === v.id)
-              ) && (
-                <button
-                  type="button"
-                  onClick={() => selectVentureTab('new')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-                    activeVentureTab === 'new'
-                      ? 'bg-[#09090b] text-white shadow-xs'
-                      : 'bg-[#fafafa] text-[#52525b] hover:bg-[#f4f4f5] border border-dashed border-[#d4d4d8]'
-                  }`}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Assign Venture</span>
-                </button>
-              )}
-            </div>
-
-            {/* Modal Body: Active Tab Content */}
-            <div className="py-4 overflow-y-auto flex-1 space-y-4">
-              {/* TAB CASE 1: Managing an Existing Venture */}
-              {activeVentureTab !== 'new' && (
-                (() => {
-                  const currentMem = managingUser.ventures.find(
-                    (v) => v.ventureId === activeVentureTab
-                  );
-                  if (!currentMem) {
-                    return (
-                      <div className="text-center py-8 text-xs text-[#71717a]">
-                        Select a venture tab above to manage access.
-                      </div>
-                    );
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-4">
+              <div>
+                <label className="block text-xs font-medium text-[#18181b] mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  const currentVentureData = availableVentures.find(
-                    (v) => v.id === activeVentureTab
-                  );
-                  const ventureTeams = availableTeams.filter(
-                    (t) => t.ventureId === activeVentureTab
-                  );
-                  const ventureSections = currentVentureData?.sections || [];
-
-                  return (
-                    <div className="space-y-4">
-                      {/* Venture Header with Danger/Remove Action */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-zinc-50 border border-[#e4e4e7] rounded-xl">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-white border border-[#e4e4e7] flex items-center justify-center text-zinc-900 shrink-0">
-                            <Building2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-semibold text-[#09090b] block">
-                              {currentMem.ventureName}
-                            </span>
-                            <span className="text-[11px] text-[#71717a]">
-                              Current team: <strong className="text-zinc-900">{currentMem.teamName}</strong> • {currentMem.sections.length} active {currentMem.sections.length === 1 ? 'section' : 'sections'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Remove from Venture action */}
-                        {confirmingRemoveVentureId === activeVentureTab ? (
-                          <div className="flex items-center gap-2 p-1.5 bg-red-50 border border-red-200 rounded-lg text-xs">
-                            <span className="text-red-700 text-[11px] font-medium">Remove from {currentMem.ventureName}?</span>
-                            <button
-                              type="button"
-                              disabled={actionLoading}
-                              onClick={() => handleRemoveVentureFromUser(activeVentureTab)}
-                              className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[11px] font-medium transition-colors"
-                            >
-                              Yes, Remove
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmingRemoveVentureId(null)}
-                              className="px-2 py-0.5 text-zinc-600 hover:text-zinc-900 text-[11px]"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmingRemoveVentureId(activeVentureTab)}
-                            className="px-2.5 py-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shrink-0"
-                            title={`Remove ${managingUser.name} from ${currentMem.ventureName}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove from Venture</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* 1. Team Assignment in this venture */}
-                      <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-xs font-semibold text-[#09090b]">
-                              Team Assignment
-                            </label>
-                            <p className="text-[11px] text-[#71717a]">
-                              Determines which department this employee belongs to in {currentMem.ventureName}.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-1">
-                          <select
-                            value={editMembershipTeamId}
-                            disabled={!isAdmin}
-                            onChange={(e) => setEditMembershipTeamId(e.target.value)}
-                            className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden disabled:bg-[#f4f4f5]"
-                          >
-                            {ventureTeams.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </select>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              disabled={actionLoading || editMembershipTeamId === currentMem.teamId}
-                              onClick={handleSaveTeamInModal}
-                              className="px-3 py-1.5 text-xs font-medium bg-[#09090b] text-white hover:bg-black disabled:opacity-40 rounded-lg transition-all flex items-center gap-1.5 shrink-0"
-                            >
-                              {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                              <span>Save Team</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 2. Section Access Permissions in this venture */}
-                      <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-xs font-semibold text-[#09090b]">
-                              Section Access Permissions
-                            </label>
-                            <p className="text-[11px] text-[#71717a]">
-                              Available workspaces enabled for {currentMem.ventureName}.
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allIds = ventureSections
-                                  .filter((s) => isAdmin || s.slug !== 'employees')
-                                  .map((s) => s.id);
-                                setEditMembershipSectionIds(allIds);
-                              }}
-                              className="text-[11px] text-[#09090b] hover:underline"
-                            >
-                              Select All
-                            </button>
-                            <span className="text-[#d4d4d8]">|</span>
-                            <button
-                              type="button"
-                              onClick={() => setEditMembershipSectionIds([])}
-                              className="text-[11px] text-[#71717a] hover:text-[#09090b] hover:underline"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="p-2.5 bg-[#fafafa] border border-[#e4e4e7] rounded-lg max-h-48 overflow-y-auto space-y-1.5">
-                          {ventureSections.length === 0 ? (
-                            <div className="text-xs text-[#71717a] py-3 text-center">
-                              No sections are currently enabled for this venture.
-                            </div>
-                          ) : (
-                            ventureSections
-                              .filter((s) => isAdmin || s.slug !== 'employees')
-                              .map((s) => (
-                                <label
-                                  key={s.id}
-                                  className="flex items-center justify-between text-xs text-[#18181b] cursor-pointer hover:bg-white p-1.5 rounded transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={editMembershipSectionIds.includes(s.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setEditMembershipSectionIds([
-                                            ...editMembershipSectionIds,
-                                            s.id,
-                                          ]);
-                                        } else {
-                                          setEditMembershipSectionIds(
-                                            editMembershipSectionIds.filter((id) => id !== s.id)
-                                          );
-                                        }
-                                      }}
-                                      className="rounded-xs border-[#e4e4e7] text-black focus:ring-black"
-                                    />
-                                    <span className="capitalize font-medium">{s.name}</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#71717a] font-mono">
-                                    {s.route}
-                                  </span>
-                                </label>
-                              ))
-                          )}
-                        </div>
-
-                        <div className="flex justify-end pt-1">
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={handleSaveSectionsInModal}
-                            className="px-3.5 py-1.5 text-xs font-medium bg-[#09090b] text-white hover:bg-black rounded-lg transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                          >
-                            {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                            <span>Save Section Access</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-              )}
-
-              {/* TAB CASE 2: Assign to a New Venture */}
-              {activeVentureTab === 'new' && (
-                (() => {
-                  const assignedIds = new Set(managingUser.ventures.map((v) => v.ventureId));
-                  const unassignedVentures = availableVentures.filter(
-                    (v) => !assignedIds.has(v.id)
-                  );
-
-                  if (unassignedVentures.length === 0) {
-                    return (
-                      <div className="p-8 text-center text-xs text-[#71717a] bg-[#fafafa] border border-[#e4e4e7] rounded-xl">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                        <span className="font-semibold text-zinc-900 block text-sm">
-                          Assigned to all active ventures
-                        </span>
-                        <p className="mt-1">
-                          {managingUser.name} already belongs to all ventures registered in the system.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  const selectedNewV = unassignedVentures.find(
-                    (v) => v.id === newVentureForm.ventureId
-                  );
-                  const newVTeams = availableTeams.filter(
-                    (t) => t.ventureId === newVentureForm.ventureId
-                  );
-                  const newVSecs = selectedNewV?.sections || [];
-
-                  return (
-                    <form onSubmit={handleAssignNewVentureInModal} className="space-y-4">
-                      <div className="p-3 bg-zinc-50 border border-[#e4e4e7] rounded-xl text-xs text-zinc-600">
-                        Assign <strong>{managingUser.name}</strong> to an additional venture, specify their team, and grant initial permissions.
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-[#18181b] mb-1">
-                            Venture
-                          </label>
-                          <select
-                            required
-                            value={newVentureForm.ventureId}
-                            onChange={(e) => {
-                              const newVId = e.target.value;
-                              const firstTeam = availableTeams.find((t) => t.ventureId === newVId);
-                              setNewVentureForm({
-                                ventureId: newVId,
-                                teamId: firstTeam?.id || '',
-                                sectionIds: [],
-                              });
-                            }}
-                            className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden"
-                          >
-                            {unassignedVentures.map((v) => (
-                              <option key={v.id} value={v.id}>
-                                {v.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-[#18181b] mb-1">
-                            Team
-                          </label>
-                          <select
-                            required
-                            value={newVentureForm.teamId}
-                            onChange={(e) =>
-                              setNewVentureForm({ ...newVentureForm, teamId: e.target.value })
-                            }
-                            className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden"
-                          >
-                            <option value="">Select Team</option>
-                            {newVTeams.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-xs font-medium text-[#18181b]">
-                            Initial Section Access
-                          </label>
-                          <div className="flex items-center gap-2 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allIds = newVSecs
-                                  .filter((s) => isAdmin || s.slug !== 'employees')
-                                  .map((s) => s.id);
-                                setNewVentureForm({ ...newVentureForm, sectionIds: allIds });
-                              }}
-                              className="text-[11px] text-[#09090b] hover:underline"
-                            >
-                              Select All
-                            </button>
-                            <span className="text-[#d4d4d8]">|</span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setNewVentureForm({ ...newVentureForm, sectionIds: [] })
-                              }
-                              className="text-[11px] text-[#71717a] hover:text-[#09090b] hover:underline"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="p-2.5 bg-[#fafafa] border border-[#e4e4e7] rounded-lg max-h-40 overflow-y-auto space-y-1.5">
-                          {newVSecs.length === 0 ? (
-                            <div className="text-xs text-[#71717a] py-3 text-center">
-                              No sections enabled for this venture.
-                            </div>
-                          ) : (
-                            newVSecs
-                              .filter((s) => isAdmin || s.slug !== 'employees')
-                              .map((s) => (
-                                <label
-                                  key={s.id}
-                                  className="flex items-center justify-between text-xs text-[#18181b] cursor-pointer hover:bg-white p-1.5 rounded transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={newVentureForm.sectionIds.includes(s.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setNewVentureForm({
-                                            ...newVentureForm,
-                                            sectionIds: [...newVentureForm.sectionIds, s.id],
-                                          });
-                                        } else {
-                                          setNewVentureForm({
-                                            ...newVentureForm,
-                                            sectionIds: newVentureForm.sectionIds.filter(
-                                              (id) => id !== s.id
-                                            ),
-                                          });
-                                        }
-                                      }}
-                                      className="rounded-xs border-[#e4e4e7] text-black focus:ring-black"
-                                    />
-                                    <span className="capitalize font-medium">{s.name}</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#71717a] font-mono">
-                                    {s.route}
-                                  </span>
-                                </label>
-                              ))
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex justify-end gap-2 border-t border-[#f0f0f2]">
-                        <button
-                          type="submit"
-                          disabled={
-                            actionLoading || !newVentureForm.ventureId || !newVentureForm.teamId
-                          }
-                          className="px-3.5 py-1.5 text-xs font-medium bg-[#09090b] text-white rounded-lg hover:bg-black transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                        >
-                          {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                          <span>Assign Venture Membership</span>
-                        </button>
-                      </div>
-                    </form>
-                  );
-                })()
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pt-3 border-t border-[#f0f0f2] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-              <div className="text-xs">
-                {activeVentureTab !== 'new' && managingUser && (() => {
-                  const currentMem = managingUser.ventures.find((v) => v.ventureId === activeVentureTab);
-                  if (!currentMem) return null;
-                  const teamChanged = editMembershipTeamId !== currentMem.teamId;
-                  const currentSecs = new Set(currentMem.sections.map((s) => s.id));
-                  const newSecs = new Set(editMembershipSectionIds);
-                  const secsChanged =
-                    currentSecs.size !== newSecs.size ||
-                    [...currentSecs].some((id) => !newSecs.has(id));
-                  const hasUnsaved = teamChanged || secsChanged;
-
-                  if (hasUnsaved) {
-                    return (
-                      <span className="text-[11px] text-amber-600 font-medium flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                        Unsaved changes in {currentMem.ventureName}
-                      </span>
-                    );
-                  }
-                  return (
-                    <span className="text-[11px] text-emerald-600 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      All settings saved
-                    </span>
-                  );
-                })()}
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                />
               </div>
 
-              <div className="flex items-center justify-end gap-2">
+              <div>
+                <label className="block text-xs font-medium text-[#18181b] mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editForm.email}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#f0f0f2]">
                 <button
                   type="button"
-                  onClick={() => {
-                    setManagingUser(null);
-                    setConfirmingRemoveVentureId(null);
-                  }}
-                  className="px-3.5 py-1.5 text-xs font-medium text-[#52525b] hover:bg-[#f4f4f5] rounded-lg transition-colors cursor-pointer"
+                  onClick={() => setEditingUser(null)}
+                  className="px-3 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] rounded-md"
                 >
-                  Close
+                  Cancel
                 </button>
-
-                {activeVentureTab !== 'new' && managingUser && (() => {
-                  const currentMem = managingUser.ventures.find((v) => v.ventureId === activeVentureTab);
-                  if (!currentMem) return null;
-                  const teamChanged = editMembershipTeamId !== currentMem.teamId;
-                  const currentSecs = new Set(currentMem.sections.map((s) => s.id));
-                  const newSecs = new Set(editMembershipSectionIds);
-                  const secsChanged =
-                    currentSecs.size !== newSecs.size ||
-                    [...currentSecs].some((id) => !newSecs.has(id));
-                  const hasUnsaved = teamChanged || secsChanged;
-
-                  return (
-                    <button
-                      type="button"
-                      disabled={actionLoading || !hasUnsaved}
-                      onClick={handleSaveAllVentureChanges}
-                      className="px-4 py-1.5 text-xs font-medium bg-[#09090b] text-white hover:bg-black rounded-lg transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-40 cursor-pointer"
-                    >
-                      {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      <span>Save All Changes</span>
-                    </button>
-                  );
-                })()}
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-3.5 py-1.5 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Save</span>
+                </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* RESET PASSWORD MODAL */}
+      {/* Reset Password Modal */}
       {resetPasswordUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-sm w-full p-6 shadow-xl animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-sm w-full shadow-xl p-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
-              <div>
-                <h3 className="text-sm font-semibold text-[#09090b]">Reset Password</h3>
-                <p className="text-xs text-[#71717a]">
-                  For <strong className="text-[#09090b]">{resetPasswordUser.name}</strong>
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-[#09090b]">
+                Reset Password: {resetPasswordUser.name}
+              </h3>
               <button
-                type="button"
                 onClick={() => setResetPasswordUser(null)}
-                className="p-1 text-[#71717a] hover:text-[#09090b] rounded-lg"
+                className="text-[#71717a] hover:text-[#09090b]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleResetPassword} className="mt-4 space-y-4">
+            <form onSubmit={handleResetPassword} className="space-y-4 pt-4">
               <div>
                 <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  New Password
+                  New Password *
                 </label>
                 <input
                   type="password"
@@ -1612,25 +1052,25 @@ export default function EmployeesPage() {
                   placeholder="Minimum 8 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-[#f0f0f2]">
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#f0f0f2]">
                 <button
                   type="button"
                   onClick={() => setResetPasswordUser(null)}
-                  className="px-3 py-1.5 text-xs text-[#52525b] hover:bg-[#f4f4f5] rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] rounded-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading || newPassword.length < 8}
-                  className="px-3.5 py-1.5 text-xs font-medium bg-[#09090b] text-white rounded-lg hover:bg-black transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
+                  disabled={actionLoading}
+                  className="px-3.5 py-1.5 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Confirm Reset</span>
+                  {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Reset Password</span>
                 </button>
               </div>
             </form>
@@ -1638,70 +1078,223 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* EDIT EMPLOYEE DETAILS MODAL */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-sm w-full p-6 shadow-xl animate-in zoom-in-95 duration-150">
+      {/* Manage Access & Membership Modal */}
+      {managingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in overflow-y-auto">
+          <div className="bg-white border border-[#e4e4e7] rounded-xl max-w-lg w-full shadow-xl p-6 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
               <div>
-                <h3 className="text-sm font-semibold text-[#09090b]">Edit Employee Details</h3>
-                <p className="text-xs text-[#71717a]">
-                  Update personnel records for <strong className="text-[#09090b]">{editingUser.name}</strong>
-                </p>
+                <h3 className="text-sm font-semibold text-[#09090b]">
+                  Manage Membership & Access: {managingUser.name}
+                </h3>
+                <span className="text-[11px] text-[#71717a]">{managingUser.email}</span>
               </div>
               <button
-                type="button"
-                onClick={() => setEditingUser(null)}
-                className="p-1 text-[#71717a] hover:text-[#09090b] rounded-lg cursor-pointer"
+                onClick={() => setManagingUser(null)}
+                className="text-[#71717a] hover:text-[#09090b]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateEmployee} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rahul Sharma"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
-                />
+            {/* Existing Memberships list */}
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-[#09090b] mb-2">
+                Current Venture Assignments:
+              </div>
+              {managingUser.ventures.length === 0 ? (
+                <div className="text-xs text-[#a1a1aa] italic bg-[#fafafa] p-3 rounded-lg border border-[#e4e4e7]">
+                  No venture assignments currently configured.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {managingUser.ventures.map((mv) => (
+                    <div
+                      key={mv.ventureId}
+                      className="bg-[#fafafa] border border-[#e4e4e7] rounded-lg p-3 text-xs flex items-start justify-between gap-3"
+                    >
+                      <div>
+                        <div className="font-semibold text-[#09090b] flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#18181b]" />
+                          <span>{mv.ventureName}</span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-[#52525b] flex items-center gap-2">
+                          <span>Dept: {mv.departmentName}</span>
+                          <span className="text-[#d4d4d8]">•</span>
+                          <span>Team: {mv.teamName}</span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {mv.sections.map((s) => (
+                            <span
+                              key={s.id}
+                              className="text-[10px] font-mono px-1.5 py-0.2 bg-white border border-[#e4e4e7] rounded text-[#09090b]"
+                            >
+                              {s.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleRemoveMembership(mv.ventureId)}
+                        className="text-red-600 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                        title="Remove from this venture"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form to Assign or Update Membership */}
+            <form onSubmit={handleMembershipSubmit} className="mt-6 pt-4 border-t border-[#f0f0f2] space-y-4">
+              <div className="text-xs font-semibold text-[#09090b]">
+                Assign / Update Membership & Sections:
               </div>
 
+              {/* Venture Select */}
               <div>
-                <label className="block text-xs font-medium text-[#18181b] mb-1">
-                  Email Address
+                <label className="block text-[11px] font-medium text-[#18181b] mb-1">
+                  Venture *
                 </label>
-                <input
-                  type="email"
+                <select
                   required
-                  placeholder="e.g. rahul@meda.com"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#e4e4e7] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-black"
-                />
+                  value={membershipForm.ventureId}
+                  onChange={(e) => {
+                    const vid = e.target.value;
+                    const existingM = managingUser.ventures.find((v) => v.ventureId === vid);
+                    setMembershipForm({
+                      ventureId: vid,
+                      departmentId: existingM ? existingM.departmentId : '',
+                      teamId: existingM ? existingM.teamId : '',
+                      sectionIds: existingM ? existingM.sections.map((s) => s.id) : [],
+                    });
+                  }}
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                >
+                  <option value="">Select a Venture...</option>
+                  {(availableVentures.length > 0 ? availableVentures : allVentures).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-[#f0f0f2]">
+              {/* Department Select */}
+              <div>
+                <label className="block text-[11px] font-medium text-[#18181b] mb-1">
+                  Department *
+                </label>
+                <select
+                  required
+                  disabled={!membershipForm.ventureId}
+                  value={membershipForm.departmentId}
+                  onChange={(e) =>
+                    setMembershipForm((prev) => ({
+                      ...prev,
+                      departmentId: e.target.value,
+                      teamId: '',
+                      sectionIds: [],
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b] disabled:opacity-50"
+                >
+                  <option value="">Select a Department...</option>
+                  {manageDepts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Team Select */}
+              <div>
+                <label className="block text-[11px] font-medium text-[#18181b] mb-1">
+                  Team in Department *
+                </label>
+                <select
+                  required
+                  disabled={!membershipForm.departmentId}
+                  value={membershipForm.teamId}
+                  onChange={(e) =>
+                    setMembershipForm((prev) => ({ ...prev, teamId: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 text-xs bg-[#fafafa] border border-[#e4e4e7] rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#09090b] disabled:opacity-50"
+                >
+                  <option value="">Select a Team...</option>
+                  {manageTeams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section Checkboxes */}
+              {membershipForm.departmentId && (
+                <div>
+                  <label className="block text-[11px] font-medium text-[#18181b] mb-1.5">
+                    Assigned Sections in this Department:
+                  </label>
+                  {manageSections.length === 0 ? (
+                    <div className="text-xs text-[#a1a1aa] italic p-2 bg-[#fafafa] rounded border border-[#e4e4e7]">
+                      No sections created under this department yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-[#fafafa] rounded-md border border-[#e4e4e7]">
+                      {manageSections.map((sec) => {
+                        const checked = membershipForm.sectionIds.includes(sec.id);
+                        return (
+                          <label
+                            key={sec.id}
+                            className="flex items-center gap-2 p-1.5 hover:bg-white rounded cursor-pointer text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setMembershipForm((prev) => ({
+                                    ...prev,
+                                    sectionIds: [...prev.sectionIds, sec.id],
+                                  }));
+                                } else {
+                                  setMembershipForm((prev) => ({
+                                    ...prev,
+                                    sectionIds: prev.sectionIds.filter((id) => id !== sec.id),
+                                  }));
+                                }
+                              }}
+                              className="rounded border-[#d4d4d8] text-[#09090b] focus:ring-0"
+                            />
+                            <span className="truncate">{sec.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#f0f0f2]">
                 <button
                   type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-3 py-1.5 text-xs text-[#52525b] hover:bg-[#f4f4f5] rounded-lg transition-colors cursor-pointer"
+                  onClick={() => setManagingUser(null)}
+                  className="px-3 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] rounded-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading || !editForm.name.trim() || !editForm.email.trim()}
-                  className="px-3.5 py-1.5 text-xs font-medium bg-[#09090b] text-white rounded-lg hover:bg-black transition-all flex items-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer"
+                  disabled={actionLoading}
+                  className="px-3.5 py-1.5 bg-[#09090b] hover:bg-[#27272a] text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Save Changes</span>
+                  {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Save Access</span>
                 </button>
               </div>
             </form>

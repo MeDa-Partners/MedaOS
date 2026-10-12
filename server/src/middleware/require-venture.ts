@@ -1,14 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
-import { userVentures, ventures } from '../db/schema';
+import { userMemberships, ventures } from '../db/schema';
 import { ForbiddenError, UnauthorizedError, BadRequestError } from '../utils/errors';
 
 /**
  * Generic authorization middleware for venture-specific resources.
- * Checks whether the authenticated user has explicit access to the venture in `user_ventures`.
+ * Checks whether the authenticated user has active membership in the venture.
  *
- * Administrators (isAdmin = true) have unrestricted broad access across all ventures.
+ * Global Administrators (isAdmin = true) have unrestricted broad access across all ventures.
  *
  * @param paramKey The key in req.params, req.body, or req.query containing the venture ID or slug (default: 'ventureId')
  */
@@ -30,7 +30,7 @@ export function requireVentureAccess(paramKey: string = 'ventureId') {
         throw new BadRequestError(`Missing required venture identifier: ${paramKey}`);
       }
 
-      // Administrators have broad OS access across all ventures
+      // Global Administrators have broad access across all ventures
       if (req.user.isAdmin) {
         return next();
       }
@@ -42,24 +42,24 @@ export function requireVentureAccess(paramKey: string = 'ventureId') {
 
       const whereClause = isUuid
         ? and(
-            eq(userVentures.userId, req.user.id),
+            eq(userMemberships.userId, req.user.id),
             eq(ventures.id, ventureIdentifier),
             eq(ventures.status, 'active')
           )
         : and(
-            eq(userVentures.userId, req.user.id),
+            eq(userMemberships.userId, req.user.id),
             eq(ventures.slug, ventureIdentifier),
             eq(ventures.status, 'active')
           );
 
       const accessRecord = await db
         .select({
-          userVentureId: userVentures.id,
+          membershipId: userMemberships.id,
           ventureId: ventures.id,
           ventureName: ventures.name,
         })
-        .from(userVentures)
-        .innerJoin(ventures, eq(userVentures.ventureId, ventures.id))
+        .from(userMemberships)
+        .innerJoin(ventures, eq(userMemberships.ventureId, ventures.id))
         .where(whereClause)
         .limit(1);
 

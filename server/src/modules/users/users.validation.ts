@@ -18,6 +18,10 @@ export const createUserSchema = z.object({
     .string()
     .uuid('Valid venture UUID is required')
     .optional(),
+  departmentId: z
+    .string()
+    .uuid('Valid department UUID is required')
+    .optional(),
   teamId: z
     .string()
     .uuid('Valid team UUID is required')
@@ -45,13 +49,14 @@ export const updateStatusSchema = z.object({
   status: z.enum(['active', 'inactive']),
 });
 
-export const assignTeamSchema = z.object({
+export const assignMembershipSchema = z.object({
   ventureId: z.string().uuid('Valid venture UUID is required'),
+  departmentId: z.string().uuid('Valid department UUID is required'),
   teamId: z.string().uuid('Valid team UUID is required'),
 });
 
 export const assignSectionsSchema = z.object({
-  ventureId: z.string().uuid('Valid venture UUID is required'),
+  ventureId: z.string().uuid('Valid venture UUID is required').optional(),
   sectionIds: z.array(z.string().uuid('Each sectionId must be a valid UUID')),
 });
 
@@ -62,7 +67,6 @@ export const resetPasswordSchema = z.object({
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>;
-export type AssignTeamInput = z.infer<typeof assignTeamSchema>;
+export type AssignMembershipInput = z.infer<typeof assignMembershipSchema>;
 export type AssignSectionsInput = z.infer<typeof assignSectionsSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
-

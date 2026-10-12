@@ -9,7 +9,7 @@ import { ShieldX, ArrowLeft, Loader2, Building2 } from 'lucide-react';
 
 interface AppShellProps {
   children: React.ReactNode;
-  title: string;
+  title?: string;
   description?: string;
   requiredSectionSlug?: string;
   requireAdmin?: boolean;
@@ -18,7 +18,7 @@ interface AppShellProps {
 
 export function AppShell({
   children,
-  title,
+  title = '',
   description,
   requiredSectionSlug,
   requireAdmin = false,

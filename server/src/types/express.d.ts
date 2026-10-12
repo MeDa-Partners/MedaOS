@@ -16,6 +16,10 @@ declare global {
     interface Request {
       user?: AuthenticatedUser;
       session?: AuthenticatedSession;
+      devUser?: {
+        username: string;
+        isDeveloper: boolean;
+      };
       ventureId?: string;
     }
   }

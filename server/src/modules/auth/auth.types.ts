@@ -6,11 +6,30 @@ export interface SafeUser {
   status: string;
 }
 
-export interface SafeTeam {
+export interface SafeDepartment {
   id: string;
   ventureId: string;
   name: string;
   slug: string;
+  headUserId: string | null;
+}
+
+export interface SafeTeam {
+  id: string;
+  departmentId: string;
+  ventureId?: string;
+  name: string;
+  slug: string;
+  headUserId: string | null;
+}
+
+export interface SafeSection {
+  id: string;
+  departmentId: string;
+  name: string;
+  slug: string;
+  route: string;
+  status: string;
 }
 
 export interface SafeVenture {
@@ -21,15 +40,9 @@ export interface SafeVenture {
   sections?: SafeSection[];
 }
 
-export interface SafeSection {
-  id: string;
-  name: string;
-  slug: string;
-  route: string;
-}
-
 export interface UserVentureMembership {
   venture: SafeVenture;
+  department: SafeDepartment | null;
   team: SafeTeam | null;
   sections: SafeSection[];
 }
@@ -39,6 +52,10 @@ export interface AuthMeResponse {
   ventures: UserVentureMembership[];
   allVentures?: SafeVenture[];
   allSections?: SafeSection[];
+  departmentsLed: string[];
+  teamsLed: string[];
+  isDepartmentHead: boolean;
+  isTeamHead: boolean;
 }
 
 export interface LoginResult {

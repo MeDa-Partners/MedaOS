@@ -5,6 +5,7 @@ import {
   updateUserSchema,
   updateStatusSchema,
 } from '../src/modules/users/users.validation';
+import { createDepartmentSchema } from '../src/modules/departments/departments.validation';
 import { createTeamSchema } from '../src/modules/teams/teams.validation';
 import { createVentureSchema } from '../src/modules/ventures/ventures.validation';
 import { createSectionSchema } from '../src/modules/sections/sections.validation';
@@ -46,7 +47,6 @@ describe('Validation Schemas', () => {
         email: '  Rahul@Meda.com  ',
         password: 'SecurePassword123!',
         teamId: 'a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d',
-        ventureIds: ['b1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d'],
       });
 
       expect(parsed.email).toBe('rahul@meda.com');
@@ -74,24 +74,7 @@ describe('Validation Schemas', () => {
     });
   });
 
-  describe('Team & Venture & Section Validation', () => {
-    it('should validate slug format for teams', () => {
-      const valid = createTeamSchema.parse({
-        ventureId: '11111111-1111-4111-8111-111111111111',
-        name: 'Sales Team',
-        slug: 'sales',
-      });
-      expect(valid.slug).toBe('sales');
-
-      expect(() =>
-        createTeamSchema.parse({
-          ventureId: '11111111-1111-4111-8111-111111111111',
-          name: 'Sales Team',
-          slug: 'Sales Team With Spaces',
-        })
-      ).toThrow();
-    });
-
+  describe('Department, Team, Venture & Section Validation', () => {
     it('should validate venture slugs', () => {
       const valid = createVentureSchema.parse({
         name: 'Nature Mania',
@@ -100,21 +83,43 @@ describe('Validation Schemas', () => {
       expect(valid.slug).toBe('nature-mania');
     });
 
-    it('should require a leading slash for section routes', () => {
-      const valid = createSectionSchema.parse({
-        name: 'Sales Section',
+    it('should validate department schema with ventureId', () => {
+      const valid = createDepartmentSchema.parse({
+        ventureId: '11111111-1111-4111-8111-111111111111',
+        name: 'Sales Department',
         slug: 'sales',
-        route: '/sales',
       });
-      expect(valid.route).toBe('/sales');
+      expect(valid.name).toBe('Sales Department');
+      expect(valid.slug).toBe('sales');
+      expect(valid.status).toBe('active');
+    });
+
+    it('should validate slug format for teams with departmentId', () => {
+      const valid = createTeamSchema.parse({
+        departmentId: '11111111-1111-4111-8111-111111111111',
+        name: 'NBD Team',
+        slug: 'nbd',
+      });
+      expect(valid.slug).toBe('nbd');
 
       expect(() =>
-        createSectionSchema.parse({
-          name: 'Sales Section',
-          slug: 'sales',
-          route: 'sales-without-slash',
+        createTeamSchema.parse({
+          departmentId: '11111111-1111-4111-8111-111111111111',
+          name: 'NBD Team',
+          slug: 'NBD Team With Spaces',
         })
       ).toThrow();
+    });
+
+    it('should validate section schema with departmentId', () => {
+      const valid = createSectionSchema.parse({
+        departmentId: '11111111-1111-4111-8111-111111111111',
+        name: 'Sales - NBD',
+        slug: 'sales-nbd',
+      });
+      expect(valid.name).toBe('Sales - NBD');
+      expect(valid.slug).toBe('sales-nbd');
+      expect(valid.status).toBe('active');
     });
   });
 });
