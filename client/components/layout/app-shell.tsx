@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
@@ -28,6 +29,7 @@ export function AppShell({
   requireAdmin = false,
   requireEmployeeManagement = false,
 }: AppShellProps) {
+  const router = useRouter();
   const {
     user,
     activeVenture,
@@ -169,7 +171,10 @@ export function AppShell({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setActiveVentureId(otherVentureWithSection.venture.id)}
+                    onClick={() => {
+                      setActiveVentureId(otherVentureWithSection.venture.id);
+                      router.push(`/${otherVentureWithSection.venture.slug}/${requiredSectionSlug}`);
+                    }}
                     className="px-2.5 py-1 text-[11px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-all shrink-0 cursor-pointer shadow-2xs"
                   >
                     Switch Venture

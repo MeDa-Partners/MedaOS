@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -47,6 +48,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PUBLIC_ROUTES = ['/login'];
 
+const ACTIVE_VENTURE_KEY = 'meda_active_venture_id';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ventures, setVentures] = useState<UserVentureMembership[]>([]);
@@ -54,7 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [allSections, setAllSections] = useState<Section[]>([]);
   const [departmentsLed, setDepartmentsLed] = useState<string[]>([]);
   const [teamsLed, setTeamsLed] = useState<string[]>([]);
-  const [activeVentureId, setActiveVentureIdState] = useState<string | null>(null);
+  const [activeVentureId, setActiveVentureIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(ACTIVE_VENTURE_KEY);
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const router = useRouter();
@@ -71,12 +79,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Retain or select active venture ID
       setActiveVentureIdState((prev) => {
-        if (prev && data.ventures.some((m) => m.venture.id === prev)) {
-          setActiveVentureHeader(prev);
-          return prev;
+        const stored = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_VENTURE_KEY) : null;
+        const candidateId = prev || stored;
+
+        const allVentureOptions = [
+          ...(data.allVentures || []),
+          ...(data.ventures || []).map((m) => m.venture),
+        ];
+
+        if (candidateId && allVentureOptions.some((v) => v.id === candidateId)) {
+          setActiveVentureHeader(candidateId);
+          return candidateId;
         }
-        const defaultId = data.ventures.length > 0 ? data.ventures[0].venture.id : null;
+
+        const defaultId =
+          data.ventures.length > 0
+            ? data.ventures[0].venture.id
+            : data.allVentures && data.allVentures.length > 0
+            ? data.allVentures[0].id
+            : null;
+
         setActiveVentureHeader(defaultId);
+        if (defaultId && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(ACTIVE_VENTURE_KEY, defaultId);
+          } catch {
+            // ignore
+          }
+        }
         return defaultId;
       });
     } else {
@@ -88,6 +118,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTeamsLed([]);
       setActiveVentureIdState(null);
       setActiveVentureHeader(null);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(ACTIVE_VENTURE_KEY);
+        } catch {
+          // ignore
+        }
+      }
     }
   }, []);
 
@@ -95,6 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (ventureId: string) => {
       setActiveVentureIdState(ventureId);
       setActiveVentureHeader(ventureId);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(ACTIVE_VENTURE_KEY, ventureId);
+        } catch {
+          // ignore
+        }
+      }
     },
     []
   );
@@ -166,28 +210,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const activeMembership =
-    ventures.find((m) => m.venture.id === activeVentureId) ||
-    (ventures.length > 0 ? ventures[0] : null);
+  // 1. Explicit membership for active venture
+  const activeMembership = useMemo(() => {
+    return ventures.find((m) => m.venture.id === activeVentureId) || null;
+  }, [ventures, activeVentureId]);
 
-  const activeVentureConfig = allVentures.find(
-    (v) => v.id === activeMembership?.venture.id
-  );
+  // 2. Venture config from allVentures or fallback
+  const selectedVentureFromAll = useMemo(() => {
+    return allVentures.find((v) => v.id === activeVentureId) || null;
+  }, [allVentures, activeVentureId]);
 
-  const activeVenture = activeMembership
-    ? {
+  const defaultVenture = useMemo(() => {
+    return ventures.length > 0 ? ventures[0].venture : allVentures[0] || null;
+  }, [ventures, allVentures]);
+
+  // 3. Complete activeVenture entity
+  const activeVenture = useMemo(() => {
+    if (activeMembership) {
+      const config = allVentures.find((v) => v.id === activeMembership.venture.id);
+      return {
         ...activeMembership.venture,
         sections:
-          activeMembership.venture.sections &&
-          activeMembership.venture.sections.length > 0
+          activeMembership.venture.sections && activeMembership.venture.sections.length > 0
             ? activeMembership.venture.sections
-            : activeVentureConfig?.sections || [],
-      }
-    : null;
+            : config?.sections || [],
+      };
+    }
+    if (selectedVentureFromAll) {
+      return {
+        ...selectedVentureFromAll,
+        sections: selectedVentureFromAll.sections || [],
+      };
+    }
+    if (defaultVenture) {
+      const config = allVentures.find((v) => v.id === defaultVenture.id);
+      return {
+        ...defaultVenture,
+        sections:
+          defaultVenture.sections && defaultVenture.sections.length > 0
+            ? defaultVenture.sections
+            : config?.sections || [],
+      };
+    }
+    return null;
+  }, [activeMembership, selectedVentureFromAll, defaultVenture, allVentures]);
 
   const activeDepartment = activeMembership?.department || null;
   const activeTeam = activeMembership?.team || null;
-  const activeSections = activeMembership ? activeMembership.sections : [];
+
+  // 4. Complete activeSections list (Admins or direct assignments inherit sections in the active venture)
+  const activeSections = useMemo(() => {
+    if (activeMembership && activeMembership.sections.length > 0) {
+      return activeMembership.sections;
+    }
+    if (activeVenture?.sections && activeVenture.sections.length > 0) {
+      return activeVenture.sections;
+    }
+    return [];
+  }, [activeMembership, activeVenture]);
 
   const isAdmin = user?.isAdmin === true;
   const isDepartmentHead = departmentsLed.length > 0;

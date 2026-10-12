@@ -50,15 +50,21 @@ import {
 } from '@/components/ui/sheet';
 
 export default function EmployeesPage() {
-  const { isAdmin, departmentsLed, refreshUser, allVentures, allSections } = useAuth();
+  const { activeVenture, isAdmin, departmentsLed, refreshUser, allVentures, allSections } = useAuth();
 
   const [employees, setEmployees] = useState<EmployeeResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedVentureFilter, setSelectedVentureFilter] = useState('');
+  const [selectedVentureFilter, setSelectedVentureFilter] = useState(() => activeVenture?.id || '');
+  const [prevVentureId, setPrevVentureId] = useState(() => activeVenture?.id);
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const [refreshCount, setRefreshCount] = useState(0);
+
+  if (activeVenture?.id !== prevVentureId) {
+    setPrevVentureId(activeVenture?.id);
+    setSelectedVentureFilter(activeVenture?.id || '');
+  }
 
   // Dropdown resources
   const [availableVentures, setAvailableVentures] = useState<Venture[]>([]);

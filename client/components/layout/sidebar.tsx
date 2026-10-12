@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { Section } from '@/lib/api';
 import {
@@ -62,6 +62,7 @@ let savedOpenDepartments: Record<string, boolean> = {};
 
 export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const {
     user,
     ventures,
@@ -82,6 +83,43 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>(
     () => savedOpenDepartments
   );
+
+  const handleVentureChange = (targetVenture: { id: string; name: string; slug: string }) => {
+    setActiveVentureId(targetVenture.id);
+    setVentureMenuOpen(false);
+
+    const segments = pathname.split('/').filter(Boolean);
+
+    if (segments.length === 0) {
+      router.push(`/${targetVenture.slug}`);
+      return;
+    }
+
+    const firstSegment = segments[0];
+    const isVentureRoute =
+      activeVenture?.slug === firstSegment ||
+      ventureOptions.some((vo) => vo.slug === firstSegment);
+
+    if (isVentureRoute) {
+      if (segments.length === 1) {
+        router.push(`/${targetVenture.slug}`);
+      } else if (segments.length >= 2) {
+        const currentSectionSlug = segments[1];
+        const targetConfig =
+          allVentures.find((v) => v.id === targetVenture.id) ||
+          ventures.find((m) => m.venture.id === targetVenture.id)?.venture;
+        const hasSection = targetConfig?.sections?.some(
+          (s) => s.slug === currentSectionSlug
+        );
+
+        if (hasSection) {
+          router.push(`/${targetVenture.slug}/${currentSectionSlug}`);
+        } else {
+          router.push(`/${targetVenture.slug}`);
+        }
+      }
+    }
+  };
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -282,10 +320,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                       <button
                         key={v.id}
                         type="button"
-                        onClick={() => {
-                          setActiveVentureId(v.id);
-                          setVentureMenuOpen(false);
-                        }}
+                        onClick={() => handleVentureChange(v)}
                         className={`w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-[#f4f4f5] transition-colors cursor-pointer ${
                           isSelected
                             ? 'text-[#09090b] font-medium bg-[#fafafa]'

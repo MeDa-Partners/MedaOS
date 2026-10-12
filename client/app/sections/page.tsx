@@ -19,17 +19,25 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useAuth } from '@/context/auth-context';
 
 export default function SectionsPage() {
+  const { activeVenture } = useAuth();
 
   const [sections, setSections] = useState<Section[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [ventures, setVentures] = useState<Venture[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedVentureFilter, setSelectedVentureFilter] = useState('');
+  const [selectedVentureFilter, setSelectedVentureFilter] = useState(() => activeVenture?.id || '');
+  const [prevVentureId, setPrevVentureId] = useState(() => activeVenture?.id);
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('');
   const [refreshCount, setRefreshCount] = useState(0);
+
+  if (activeVenture?.id !== prevVentureId) {
+    setPrevVentureId(activeVenture?.id);
+    setSelectedVentureFilter(activeVenture?.id || '');
+  }
 
   // Notifications
   const [error, setError] = useState<string | null>(null);

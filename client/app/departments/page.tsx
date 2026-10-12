@@ -32,15 +32,21 @@ import {
 } from '@/components/ui/sheet';
 
 export default function DepartmentsPage() {
-  const { isAdmin, refreshUser } = useAuth();
+  const { activeVenture, isAdmin, refreshUser } = useAuth();
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [ventures, setVentures] = useState<Venture[]>([]);
   const [employees, setEmployees] = useState<EmployeeResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedVentureFilter, setSelectedVentureFilter] = useState('');
+  const [selectedVentureFilter, setSelectedVentureFilter] = useState(() => activeVenture?.id || '');
+  const [prevVentureId, setPrevVentureId] = useState(() => activeVenture?.id);
   const [refreshCount, setRefreshCount] = useState(0);
+
+  if (activeVenture?.id !== prevVentureId) {
+    setPrevVentureId(activeVenture?.id);
+    setSelectedVentureFilter(activeVenture?.id || '');
+  }
 
   // Notifications
   const [error, setError] = useState<string | null>(null);
