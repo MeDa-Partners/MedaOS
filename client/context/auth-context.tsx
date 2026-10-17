@@ -1,318 +1,163 @@
 'use client';
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  ReactNode,
-} from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import {
-  api,
-  User,
-  Venture,
-  Section,
-  UserVentureMembership,
-  AuthData,
-  setActiveVentureHeader,
-} from '@/lib/api';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { api, AuthData, User, VentureMembership, VentureRole } from '@/lib/api';
+
+/** Routes that render without an employee session (/dev has its own developer login). */
+const PUBLIC_PREFIXES = ['/login', '/dev'];
+const ACTIVE_VENTURE_KEY = 'meda_active_venture_id';
 
 export interface AuthContextType {
   user: User | null;
-  ventures: UserVentureMembership[];
-  activeMembership: UserVentureMembership | null;
-  activeVenture: { id: string; name: string; slug: string; status?: string; sections?: Section[] } | null;
-  activeDepartment: { id: string; ventureId: string; name: string; slug: string; headUserId: string | null } | null;
-  activeTeam: { id: string; departmentId?: string; ventureId?: string; name: string; slug: string; headUserId?: string | null } | null;
-  activeSections: Section[];
-  allVentures: Venture[];
-  allSections: Section[];
+  /** Every venture the user can work in (admins: all active ventures). */
+  memberships: VentureMembership[];
+  activeMembership: VentureMembership | null;
+  activeVenture: VentureMembership['venture'] | null;
+  /** Role in the active venture. */
+  role: VentureRole | null;
+  setActiveVenture: (ventureIdOrSlug: string) => void;
   departmentsLed: string[];
   teamsLed: string[];
-  isDepartmentHead: boolean;
-  isTeamHead: boolean;
-  setActiveVentureId: (ventureId: string) => void;
-  isLoading: boolean;
-  isAuthenticated: boolean;
   isAdmin: boolean;
-  hasEmployeeManagementAccess: boolean;
-  login: (email: string, password: string) => Promise<AuthData>;
+  /** Admin, department head or team head anywhere — may open people management. */
+  isLeader: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_ROUTES = ['/login'];
+function readStoredVenture(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_VENTURE_KEY);
+  } catch {
+    return null;
+  }
+}
 
-const ACTIVE_VENTURE_KEY = 'meda_active_venture_id';
+function storeVenture(id: string | null) {
+  try {
+    if (id) localStorage.setItem(ACTIVE_VENTURE_KEY, id);
+    else localStorage.removeItem(ACTIVE_VENTURE_KEY);
+  } catch {
+    // storage unavailable (private mode) — selection just won't persist
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [ventures, setVentures] = useState<UserVentureMembership[]>([]);
-  const [allVentures, setAllVentures] = useState<Venture[]>([]);
-  const [allSections, setAllSections] = useState<Section[]>([]);
-  const [departmentsLed, setDepartmentsLed] = useState<string[]>([]);
-  const [teamsLed, setTeamsLed] = useState<string[]>([]);
-  const [activeVentureId, setActiveVentureIdState] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(ACTIVE_VENTURE_KEY);
-    }
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
+  const [data, setData] = useState<AuthData | null>(null);
+  const [activeVentureId, setActiveVentureId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  const setAuthData = useCallback((data: AuthData | null) => {
-    if (data) {
-      setUser(data.user);
-      setVentures(data.ventures);
-      setAllVentures(data.allVentures || []);
-      setAllSections(data.allSections || []);
-      setDepartmentsLed(data.departmentsLed || []);
-      setTeamsLed(data.teamsLed || []);
-
-      // Retain or select active venture ID
-      setActiveVentureIdState((prev) => {
-        const stored = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_VENTURE_KEY) : null;
-        const candidateId = prev || stored;
-
-        const allVentureOptions = [
-          ...(data.allVentures || []),
-          ...(data.ventures || []).map((m) => m.venture),
-        ];
-
-        if (candidateId && allVentureOptions.some((v) => v.id === candidateId)) {
-          setActiveVentureHeader(candidateId);
-          return candidateId;
-        }
-
-        const defaultId =
-          data.ventures.length > 0
-            ? data.ventures[0].venture.id
-            : data.allVentures && data.allVentures.length > 0
-            ? data.allVentures[0].id
-            : null;
-
-        setActiveVentureHeader(defaultId);
-        if (defaultId && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(ACTIVE_VENTURE_KEY, defaultId);
-          } catch {
-            // ignore
-          }
-        }
-        return defaultId;
-      });
-    } else {
-      setUser(null);
-      setVentures([]);
-      setAllVentures([]);
-      setAllSections([]);
-      setDepartmentsLed([]);
-      setTeamsLed([]);
-      setActiveVentureIdState(null);
-      setActiveVentureHeader(null);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(ACTIVE_VENTURE_KEY);
-        } catch {
-          // ignore
-        }
-      }
+  const apply = useCallback((next: AuthData | null) => {
+    setData(next);
+    if (!next) {
+      setActiveVentureId(null);
+      return;
     }
+    setActiveVentureId((prev) => {
+      const candidate = prev ?? readStoredVenture();
+      const valid = next.ventures.find((m) => m.venture.id === candidate);
+      const chosen = valid?.venture.id ?? next.ventures[0]?.venture.id ?? null;
+      storeVenture(chosen);
+      return chosen;
+    });
   }, []);
 
-  const setActiveVentureId = useCallback(
-    (ventureId: string) => {
-      setActiveVentureIdState(ventureId);
-      setActiveVentureHeader(ventureId);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(ACTIVE_VENTURE_KEY, ventureId);
-        } catch {
-          // ignore
-        }
-      }
-    },
-    []
-  );
-
-  const refreshUser = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      const data = await api.auth.me();
-      setAuthData(data);
+      apply(await api.auth.me());
     } catch {
-      setAuthData(null);
-      if (!PUBLIC_ROUTES.includes(pathname)) {
-        router.push('/login');
-      }
-    } finally {
-      setIsLoading(false);
+      apply(null);
     }
-  }, [pathname, router, setAuthData]);
+  }, [apply]);
 
-  // Initial session authentication check
+  // Resolve the session once on load.
   useEffect(() => {
     let ignore = false;
-
     api.auth
       .me()
-      .then((data) => {
-        if (!ignore) {
-          setAuthData(data);
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setAuthData(null);
-          if (!PUBLIC_ROUTES.includes(pathname)) {
-            router.push('/login');
-          }
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      });
-
+      .then((me) => !ignore && apply(me))
+      .catch(() => !ignore && apply(null))
+      .finally(() => !ignore && setIsLoading(false));
     return () => {
       ignore = true;
     };
-  }, [pathname, router, setAuthData]);
+  }, [apply]);
 
-  const login = async (email: string, password: string): Promise<AuthData> => {
-    setIsLoading(true);
-    try {
-      const data = await api.auth.login(email, password);
-      setAuthData(data);
-      router.push('/');
-      return data;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Bounce signed-out visitors to the login page.
+  useEffect(() => {
+    if (!isLoading && !data && !isPublic) router.replace('/login');
+  }, [isLoading, data, isPublic, router]);
 
-  const logout = async (): Promise<void> => {
+  const login = useCallback(
+    async (email: string, password: string) => {
+      apply(await api.auth.login(email, password));
+      router.replace('/');
+    },
+    [apply, router]
+  );
+
+  const logout = useCallback(async () => {
     try {
       await api.auth.logout();
-    } catch {
-      // Ignore network errors on logout
     } finally {
-      setAuthData(null);
-      router.push('/login');
+      apply(null);
+      storeVenture(null);
+      router.replace('/login');
     }
-  };
+  }, [apply, router]);
 
-  // 1. Explicit membership for active venture
-  const activeMembership = useMemo(() => {
-    return ventures.find((m) => m.venture.id === activeVentureId) || null;
-  }, [ventures, activeVentureId]);
-
-  // 2. Venture config from allVentures or fallback
-  const selectedVentureFromAll = useMemo(() => {
-    return allVentures.find((v) => v.id === activeVentureId) || null;
-  }, [allVentures, activeVentureId]);
-
-  const defaultVenture = useMemo(() => {
-    return ventures.length > 0 ? ventures[0].venture : allVentures[0] || null;
-  }, [ventures, allVentures]);
-
-  // 3. Complete activeVenture entity
-  const activeVenture = useMemo(() => {
-    if (activeMembership) {
-      const config = allVentures.find((v) => v.id === activeMembership.venture.id);
-      return {
-        ...activeMembership.venture,
-        sections:
-          activeMembership.venture.sections && activeMembership.venture.sections.length > 0
-            ? activeMembership.venture.sections
-            : config?.sections || [],
-      };
-    }
-    if (selectedVentureFromAll) {
-      return {
-        ...selectedVentureFromAll,
-        sections: selectedVentureFromAll.sections || [],
-      };
-    }
-    if (defaultVenture) {
-      const config = allVentures.find((v) => v.id === defaultVenture.id);
-      return {
-        ...defaultVenture,
-        sections:
-          defaultVenture.sections && defaultVenture.sections.length > 0
-            ? defaultVenture.sections
-            : config?.sections || [],
-      };
-    }
-    return null;
-  }, [activeMembership, selectedVentureFromAll, defaultVenture, allVentures]);
-
-  const activeDepartment = activeMembership?.department || null;
-  const activeTeam = activeMembership?.team || null;
-
-  // 4. Complete activeSections list (Admins or direct assignments inherit sections in the active venture)
-  const activeSections = useMemo(() => {
-    if (activeMembership && activeMembership.sections.length > 0) {
-      return activeMembership.sections;
-    }
-    if (activeVenture?.sections && activeVenture.sections.length > 0) {
-      return activeVenture.sections;
-    }
-    return [];
-  }, [activeMembership, activeVenture]);
-
-  const isAdmin = user?.isAdmin === true;
-  const isDepartmentHead = departmentsLed.length > 0;
-  const isTeamHead = teamsLed.length > 0;
-
-  // Management access granted to Global Admin, Department Heads, and Team Heads
-  const hasEmployeeManagementAccess = isAdmin || isDepartmentHead || isTeamHead;
-
-  const isAuthenticated = !!user;
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        ventures,
-        activeMembership,
-        activeVenture,
-        activeDepartment,
-        activeTeam,
-        activeSections,
-        allVentures,
-        allSections,
-        departmentsLed,
-        teamsLed,
-        isDepartmentHead,
-        isTeamHead,
-        setActiveVentureId,
-        isLoading,
-        isAuthenticated,
-        isAdmin,
-        hasEmployeeManagementAccess,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const setActiveVenture = useCallback(
+    (idOrSlug: string) => {
+      const match = data?.ventures.find((m) => m.venture.id === idOrSlug || m.venture.slug === idOrSlug);
+      if (!match) return;
+      storeVenture(match.venture.id);
+      setActiveVentureId(match.venture.id);
+    },
+    [data]
   );
+
+  const value = useMemo<AuthContextType>(() => {
+    const memberships = data?.ventures ?? [];
+    const activeMembership = memberships.find((m) => m.venture.id === activeVentureId) ?? memberships[0] ?? null;
+    const isAdmin = data?.user.isAdmin === true;
+    return {
+      user: data?.user ?? null,
+      memberships,
+      activeMembership,
+      activeVenture: activeMembership?.venture ?? null,
+      role: activeMembership?.role ?? null,
+      setActiveVenture,
+      departmentsLed: data?.departmentsLed ?? [],
+      teamsLed: data?.teamsLed ?? [],
+      isAdmin,
+      isLeader: isAdmin || !!data?.isDepartmentHead || !!data?.isTeamHead,
+      isLoading,
+      login,
+      logout,
+      refresh,
+    };
+  }, [data, activeVentureId, setActiveVenture, isLoading, login, logout, refresh]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
+
+export const ROLE_LABEL: Record<VentureRole, string> = {
+  admin: 'Administrator',
+  department_head: 'Department head',
+  team_head: 'Team head',
+  member: 'Member',
+};

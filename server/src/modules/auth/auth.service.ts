@@ -1,4 +1,4 @@
-import { eq, and, ne } from 'drizzle-orm';
+import { eq, and, ne, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   users,
@@ -30,6 +30,7 @@ import {
   UserVentureMembership,
   SafeSection,
 } from './auth.types';
+import { loadAuthority } from '../../utils/access';
 
 export class AuthService {
   /**
@@ -87,42 +88,25 @@ export class AuthService {
   }
 
   /**
-   * Resolves the full identity, venture memberships, department, team, and accessible sections.
+   * Resolves identity plus, per venture, the user's department, team, role and openable sections.
+   * Admins get every active venture with every active section.
    */
   async getAuthMe(userId: string): Promise<AuthMeResponse> {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
     if (!user) {
       throw new UnauthorizedError('User not found');
     }
-
     if (user.status !== 'active') {
       throw new ForbiddenError('Your account has been deactivated.');
     }
 
-    // Resolve departments, teams, active ventures and sections in parallel
-    const [deptLedRows, teamLedRows, allVenturesList, allActiveSections] = await Promise.all([
+    const [activeVentures, activeSections, memberRows, grantRows, auth] = await Promise.all([
       db
-        .select({ id: departments.id })
-        .from(departments)
-        .where(eq(departments.headUserId, user.id)),
-      db
-        .select({ id: teams.id })
-        .from(teams)
-        .where(eq(teams.headUserId, user.id)),
-      db
-        .select({
-          id: ventures.id,
-          name: ventures.name,
-          slug: ventures.slug,
-          status: ventures.status,
-        })
+        .select({ id: ventures.id, name: ventures.name, slug: ventures.slug, status: ventures.status })
         .from(ventures)
-        .where(eq(ventures.status, 'active')),
+        .where(eq(ventures.status, 'active'))
+        .orderBy(asc(ventures.name)),
       db
         .select({
           id: sections.id,
@@ -136,152 +120,95 @@ export class AuthService {
         })
         .from(sections)
         .innerJoin(departments, eq(sections.departmentId, departments.id))
-        .where(eq(sections.status, 'active')),
+        .where(and(eq(sections.status, 'active'), eq(departments.status, 'active')))
+        .orderBy(asc(departments.name), asc(sections.name)),
+      db
+        .select({
+          ventureId: userMemberships.ventureId,
+          departmentId: departments.id,
+          departmentName: departments.name,
+          departmentSlug: departments.slug,
+          deptHeadUserId: departments.headUserId,
+          teamId: teams.id,
+          teamName: teams.name,
+          teamSlug: teams.slug,
+          teamHeadUserId: teams.headUserId,
+        })
+        .from(userMemberships)
+        .innerJoin(departments, eq(userMemberships.departmentId, departments.id))
+        .leftJoin(teams, eq(userMemberships.teamId, teams.id))
+        .where(eq(userMemberships.userId, user.id)),
+      db
+        .select({ sectionId: userSections.sectionId })
+        .from(userSections)
+        .where(eq(userSections.userId, user.id)),
+      loadAuthority({ id: user.id, isAdmin: user.isAdmin }),
     ]);
 
-    const departmentsLed = deptLedRows.map((d) => d.id);
-    const teamsLed = teamLedRows.map((t) => t.id);
-
-    const allVenturesWithSections = allVenturesList.map((v) => {
-      const vSections: SafeSection[] = allActiveSections
-        .filter((s) => s.ventureId === v.id)
-        .map((s) => ({
-          id: s.id,
-          departmentId: s.departmentId,
-          departmentName: s.departmentName,
-          departmentSlug: s.departmentSlug,
-          name: s.name,
-          slug: s.slug,
-          route: `/${v.slug}/${s.slug}`,
-          status: s.status,
-        }));
-      return {
-        ...v,
-        sections: vSections,
-      };
-    });
-
-    const ventureMemberships: UserVentureMembership[] = [];
-
-    if (user.isAdmin) {
-      // Global Admin has complete organizational access across all active ventures
-      for (const v of allVenturesWithSections) {
-        ventureMemberships.push({
-          venture: v,
-          department: null,
-          team: null,
-          sections: v.sections || [],
-        });
-      }
-    } else {
-      // Query user's memberships and assigned sections in parallel
-      const [userMemberRows, userSecRows] = await Promise.all([
-        db
-          .select({
-            ventureId: ventures.id,
-            ventureName: ventures.name,
-            ventureSlug: ventures.slug,
-            ventureStatus: ventures.status,
-            departmentId: departments.id,
-            departmentName: departments.name,
-            departmentSlug: departments.slug,
-            deptHeadUserId: departments.headUserId,
-            teamId: teams.id,
-            teamName: teams.name,
-            teamSlug: teams.slug,
-            teamHeadUserId: teams.headUserId,
-          })
-          .from(userMemberships)
-          .innerJoin(ventures, eq(userMemberships.ventureId, ventures.id))
-          .innerJoin(departments, eq(userMemberships.departmentId, departments.id))
-          .innerJoin(teams, eq(userMemberships.teamId, teams.id))
-          .where(
-            and(
-              eq(userMemberships.userId, user.id),
-              eq(ventures.status, 'active')
-            )
-          ),
-        db
-          .select({
-            sectionId: userSections.sectionId,
-          })
-          .from(userSections)
-          .where(eq(userSections.userId, user.id)),
-      ]);
-
-      const assignedSectionIdSet = new Set(userSecRows.map((r) => r.sectionId));
-
-      for (const m of userMemberRows) {
-        const isDeptHead = m.deptHeadUserId === user.id;
-
-        // Department Heads inherit access to all active sections in their department
-        // Regular employees and Team Heads access their specifically assigned active sections in their department
-        const deptActiveSections = allActiveSections.filter(
-          (s) => s.departmentId === m.departmentId
-        );
-
-        const accessibleSections: SafeSection[] = isDeptHead
-          ? deptActiveSections.map((s) => ({
-              id: s.id,
-              departmentId: s.departmentId,
-              departmentName: m.departmentName,
-              departmentSlug: m.departmentSlug,
-              name: s.name,
-              slug: s.slug,
-              route: `/${m.ventureSlug}/${s.slug}`,
-              status: s.status,
-            }))
-          : deptActiveSections
-              .filter((s) => assignedSectionIdSet.has(s.id))
-              .map((s) => ({
-                id: s.id,
-                departmentId: s.departmentId,
-                departmentName: m.departmentName,
-                departmentSlug: m.departmentSlug,
-                name: s.name,
-                slug: s.slug,
-                route: `/${m.ventureSlug}/${s.slug}`,
-                status: s.status,
-              }));
-
-        ventureMemberships.push({
-          venture: {
-            id: m.ventureId,
-            name: m.ventureName,
-            slug: m.ventureSlug,
-            status: m.ventureStatus,
-            sections: accessibleSections,
-          },
-          department: {
-            id: m.departmentId,
-            ventureId: m.ventureId,
-            name: m.departmentName,
-            slug: m.departmentSlug,
-            headUserId: m.deptHeadUserId,
-          },
-          team: {
-            id: m.teamId,
-            departmentId: m.departmentId,
-            ventureId: m.ventureId,
-            name: m.teamName,
-            slug: m.teamSlug,
-            headUserId: m.teamHeadUserId,
-          },
-          sections: accessibleSections,
-        });
-      }
-    }
-
-    const catalogSections: SafeSection[] = allActiveSections.map((s) => ({
+    const granted = new Set(grantRows.map((g) => g.sectionId));
+    const ventureById = new Map(activeVentures.map((v) => [v.id, v]));
+    const toSafeSection = (s: (typeof activeSections)[number], ventureSlug: string): SafeSection => ({
       id: s.id,
       departmentId: s.departmentId,
       departmentName: s.departmentName,
       departmentSlug: s.departmentSlug,
       name: s.name,
       slug: s.slug,
-      route: `/${s.slug}`,
+      route: `/${ventureSlug}/${s.slug}`,
       status: s.status,
-    }));
+    });
+
+    const memberships: UserVentureMembership[] = [];
+
+    for (const m of memberRows) {
+      const venture = ventureById.get(m.ventureId);
+      if (!venture) continue; // venture disabled
+
+      const isDeptHead = auth.departmentsLed.has(m.departmentId);
+      const isTeamHead = !!m.teamId && auth.teamsLed.has(m.teamId);
+      const deptSections = activeSections.filter((s) => s.departmentId === m.departmentId);
+
+      memberships.push({
+        venture,
+        department: {
+          id: m.departmentId,
+          ventureId: m.ventureId,
+          name: m.departmentName,
+          slug: m.departmentSlug,
+          headUserId: m.deptHeadUserId,
+        },
+        team: m.teamId
+          ? {
+              id: m.teamId,
+              departmentId: m.departmentId,
+              name: m.teamName!,
+              slug: m.teamSlug!,
+              headUserId: m.teamHeadUserId,
+            }
+          : null,
+        role: user.isAdmin ? 'admin' : isDeptHead ? 'department_head' : isTeamHead ? 'team_head' : 'member',
+        sections: (user.isAdmin || isDeptHead ? deptSections : deptSections.filter((s) => granted.has(s.id))).map(
+          (s) => toSafeSection(s, venture.slug)
+        ),
+      });
+    }
+
+    if (user.isAdmin) {
+      // Admins work across every venture and see every section, membership or not.
+      for (const venture of activeVentures) {
+        const existing = memberships.find((m) => m.venture.id === venture.id);
+        const allSections = activeSections
+          .filter((s) => s.ventureId === venture.id)
+          .map((s) => toSafeSection(s, venture.slug));
+        if (existing) {
+          existing.sections = allSections;
+        } else {
+          memberships.push({ venture, department: null, team: null, role: 'admin', sections: allSections });
+        }
+      }
+    }
+
+    memberships.sort((a, b) => a.venture.name.localeCompare(b.venture.name));
 
     return {
       user: {
@@ -291,13 +218,11 @@ export class AuthService {
         isAdmin: user.isAdmin,
         status: user.status,
       },
-      ventures: ventureMemberships,
-      allVentures: allVenturesWithSections,
-      allSections: catalogSections,
-      departmentsLed,
-      teamsLed,
-      isDepartmentHead: departmentsLed.length > 0,
-      isTeamHead: teamsLed.length > 0,
+      ventures: memberships,
+      departmentsLed: [...auth.departmentsLed],
+      teamsLed: [...auth.teamsLed.keys()],
+      isDepartmentHead: auth.departmentsLed.size > 0,
+      isTeamHead: auth.teamsLed.size > 0,
     };
   }
 

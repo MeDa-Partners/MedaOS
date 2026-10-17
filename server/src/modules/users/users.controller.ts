@@ -2,127 +2,86 @@ import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service';
 import {
   createUserSchema,
-  updateUserSchema,
-  updateStatusSchema,
-  assignMembershipSchema,
-  assignSectionsSchema,
+  listUsersQuerySchema,
   resetPasswordSchema,
+  setMembershipSchema,
+  setSectionsSchema,
+  updateStatusSchema,
+  updateUserSchema,
 } from './users.validation';
 import { sendSuccess } from '../../utils/response';
-import { getRouteParam, cleanUuidParam } from '../../utils/params';
+import { cleanUuidParam, getRouteParam } from '../../utils/params';
 
-export class UsersController {
-  private getRequester(req: Request) {
-    return {
-      id: req.user!.id,
-      isAdmin: req.user!.isAdmin,
-    };
-  }
+type Handler = (req: Request, res: Response) => Promise<void>;
 
-  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
-      const search = req.query.search as string | undefined;
-      const ventureId = cleanUuidParam(req.query.ventureId);
-      const departmentId = cleanUuidParam(req.query.departmentId);
-      const teamId = cleanUuidParam(req.query.teamId);
+/** Wraps a handler so thrown errors reach the central error handler. */
+const handle =
+  (fn: Handler) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    fn(req, res).catch(next);
+  };
 
-      const result = await usersService.listUsers(
-        { page, limit, search, ventureId, departmentId, teamId },
-        this.getRequester(req)
-      );
-      sendSuccess(res, result);
-    } catch (error) {
-      next(error);
-    }
-  }
+const actorOf = (req: Request) => ({ id: req.user!.id, isAdmin: req.user!.isAdmin });
+const idOf = (req: Request) => getRouteParam(req.params.id);
 
-  async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const user = await usersService.getUserById(id, this.getRequester(req));
-      sendSuccess(res, user);
-    } catch (error) {
-      next(error);
-    }
-  }
+export const usersController = {
+  list: handle(async (req, res) => {
+    const query = listUsersQuerySchema.parse({
+      ...req.query,
+      ventureId: cleanUuidParam(req.query.ventureId),
+      departmentId: cleanUuidParam(req.query.departmentId),
+      teamId: cleanUuidParam(req.query.teamId),
+    });
+    sendSuccess(res, await usersService.listUsers(query, actorOf(req)));
+  }),
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const validatedInput = createUserSchema.parse(req.body);
-      const user = await usersService.createUser(validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 201, 'Employee created successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  getById: handle(async (req, res) => {
+    sendSuccess(res, await usersService.getUser(idOf(req), actorOf(req)));
+  }),
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const validatedInput = updateUserSchema.parse(req.body);
-      const user = await usersService.updateUser(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Employee updated successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  create: handle(async (req, res) => {
+    const input = createUserSchema.parse(req.body);
+    sendSuccess(res, await usersService.createUser(input, actorOf(req)), 201, 'Employee created');
+  }),
 
-  async updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const validatedInput = updateStatusSchema.parse(req.body);
-      const user = await usersService.updateStatus(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Employee status updated successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  update: handle(async (req, res) => {
+    const input = updateUserSchema.parse(req.body);
+    sendSuccess(res, await usersService.updateUser(idOf(req), input, actorOf(req)), 200, 'Employee updated');
+  }),
 
-  async assignMembership(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const validatedInput = assignMembershipSchema.parse(req.body);
-      const user = await usersService.assignMembership(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Organizational membership assigned successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  updateStatus: handle(async (req, res) => {
+    const input = updateStatusSchema.parse(req.body);
+    sendSuccess(res, await usersService.updateStatus(idOf(req), input, actorOf(req)), 200, 'Status updated');
+  }),
 
-  async removeMembership(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const ventureId = getRouteParam(req.params.ventureId);
-      const user = await usersService.removeMembership(id, ventureId, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Removed from venture successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  resetPassword: handle(async (req, res) => {
+    const { newPassword } = resetPasswordSchema.parse(req.body);
+    await usersService.resetPassword(idOf(req), newPassword, actorOf(req));
+    sendSuccess(res, null, 200, 'Password reset. The employee has been signed out everywhere.');
+  }),
 
-  async assignSections(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const validatedInput = assignSectionsSchema.parse(req.body);
-      const user = await usersService.assignSections(id, validatedInput, this.getRequester(req));
-      sendSuccess(res, user, 200, 'Section access assigned successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
+  setMembership: handle(async (req, res) => {
+    const input = setMembershipSchema.parse(req.body);
+    sendSuccess(res, await usersService.setMembership(idOf(req), input, actorOf(req)), 200, 'Placement updated');
+  }),
 
-  async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = getRouteParam(req.params.id);
-      const validatedInput = resetPasswordSchema.parse(req.body);
-      await usersService.resetPassword(id, validatedInput.newPassword, this.getRequester(req));
-      sendSuccess(res, null, 200, 'Password reset successfully');
-    } catch (error) {
-      next(error);
-    }
-  }
-}
+  removeMembership: handle(async (req, res) => {
+    const ventureId = getRouteParam(req.params.ventureId);
+    sendSuccess(res, await usersService.removeMembership(idOf(req), ventureId, actorOf(req)), 200, 'Removed from venture');
+  }),
 
-export const usersController = new UsersController();
+  setSections: handle(async (req, res) => {
+    const input = setSectionsSchema.parse(req.body);
+    sendSuccess(res, await usersService.setSections(idOf(req), input, actorOf(req)), 200, 'Section access updated');
+  }),
+
+  grantSection: handle(async (req, res) => {
+    const sectionId = getRouteParam(req.params.sectionId);
+    sendSuccess(res, await usersService.grantSection(idOf(req), sectionId, actorOf(req)), 200, 'Access granted');
+  }),
+
+  revokeSection: handle(async (req, res) => {
+    const sectionId = getRouteParam(req.params.sectionId);
+    sendSuccess(res, await usersService.revokeSection(idOf(req), sectionId, actorOf(req)), 200, 'Access revoked');
+  }),
+};

@@ -17,9 +17,8 @@ export const userMemberships = pgTable(
     departmentId: uuid('department_id')
       .notNull()
       .references(() => departments.id, { onDelete: 'cascade' }),
-    teamId: uuid('team_id')
-      .notNull()
-      .references(() => teams.id, { onDelete: 'cascade' }),
+    // Optional: an employee can belong to a department before being placed in a team.
+    teamId: uuid('team_id').references(() => teams.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

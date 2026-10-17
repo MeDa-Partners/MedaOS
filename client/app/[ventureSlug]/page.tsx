@@ -1,271 +1,174 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import { use, useMemo } from 'react';
 import Link from 'next/link';
-import { AppShell } from '@/components/layout/app-shell';
-import { useAuth } from '@/context/auth-context';
-import { api, Venture, Department, Team, Section, ApiError, setActiveVentureHeader } from '@/lib/api';
-import {
-  Building2,
-  FolderTree,
-  Network,
-  Layers,
-  ArrowRight,
-  Loader2,
-  Crown,
-} from 'lucide-react';
+import { ArrowUpRight, FolderTree, Layers, Network, ShieldCheck, Users } from 'lucide-react';
+import { useAuth, ROLE_LABEL } from '@/context/auth-context';
+import { AppShell, NoAccess } from '@/components/layout/app-shell';
+import { SectionRef } from '@/lib/api';
+import { isSectionModuleBuilt } from '@/sections/registry';
+import { useVentureFromSlug } from '@/lib/use-venture';
+import { RoleBadge } from '@/components/ui/role-badge';
 
-interface VenturePageProps {
-  params: Promise<{
-    ventureSlug: string;
-  }>;
+function greeting() {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export default function VentureDashboardPage({ params }: VenturePageProps) {
-  const resolvedParams = use(params);
-  const { ventureSlug } = resolvedParams;
+function SectionCard({ section, ventureSlug }: { section: SectionRef; ventureSlug: string }) {
+  const built = isSectionModuleBuilt(ventureSlug, section.slug);
+  return (
+    <Link
+      href={section.route}
+      className="group relative flex flex-col gap-3 rounded-xl border border-[#e4e4e7] bg-white p-4 shadow-2xs transition-all hover:border-[#d4d4d8] hover:shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="w-9 h-9 rounded-lg bg-[#f4f4f5] border border-[#e4e4e7] flex items-center justify-center text-[#52525b] group-hover:bg-[#09090b] group-hover:text-white group-hover:border-[#09090b] transition-colors">
+          <Layers className="w-4 h-4" />
+        </div>
+        <ArrowUpRight className="w-4 h-4 text-[#d4d4d8] group-hover:text-[#09090b] transition-colors" />
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-[#09090b] tracking-tight">{section.name}</div>
+        <div className="text-[11px] text-[#71717a] mt-0.5">{section.departmentName}</div>
+      </div>
+      {!built && (
+        <span className="self-start text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">
+          Coming soon
+        </span>
+      )}
+    </Link>
+  );
+}
 
-  const { setActiveVentureId } = useAuth();
+function ManageCard({
+  href,
+  icon: Icon,
+  title,
+  text,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-start gap-3 rounded-xl border border-[#e4e4e7] bg-white p-4 hover:border-[#d4d4d8] hover:shadow-sm transition-all"
+    >
+      <div className="w-8 h-8 rounded-lg bg-[#f4f4f5] flex items-center justify-center text-[#52525b] shrink-0">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-[#09090b] flex items-center gap-1">
+          {title}
+          <ArrowUpRight className="w-3.5 h-3.5 text-[#d4d4d8] group-hover:text-[#09090b] transition-colors" />
+        </div>
+        <p className="text-xs text-[#71717a] leading-relaxed mt-0.5">{text}</p>
+      </div>
+    </Link>
+  );
+}
 
-  const [loading, setLoading] = useState(true);
-  const [venture, setVenture] = useState<Venture | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [error, setError] = useState<string | null>(null);
+export default function VentureHomePage({ params }: { params: Promise<{ ventureSlug: string }> }) {
+  const { ventureSlug } = use(params);
+  const { user, isLoading } = useAuth();
+  const { membership } = useVentureFromSlug(ventureSlug);
 
-  useEffect(() => {
-    let isMounted = true;
+  const groups = useMemo(() => {
+    const map = new Map<string, SectionRef[]>();
+    for (const s of membership?.sections ?? []) map.set(s.departmentName, [...(map.get(s.departmentName) ?? []), s]);
+    return [...map.entries()];
+  }, [membership]);
 
-    async function loadVentureData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const vList = await api.ventures.list();
-        const matched = vList.find((v) => v.slug === ventureSlug);
+  if (isLoading || !user) return <AppShell title="">{null}</AppShell>;
 
-        if (!matched) {
-          setError(`Venture "${ventureSlug}" not found`);
-          setLoading(false);
-          return;
-        }
+  if (!membership) {
+    return (
+      <AppShell title="Venture">
+        <NoAccess title="Venture not available" message="This venture doesn’t exist, is disabled, or you are not a member of it." />
+      </AppShell>
+    );
+  }
 
-        if (isMounted) {
-          setVenture(matched);
-          setActiveVentureHeader(matched.id);
-          setActiveVentureId(matched.id);
-
-          const [dList, tList, sList] = await Promise.all([
-            api.departments.list(matched.id),
-            api.teams.list({ ventureId: matched.id }),
-            api.sections.list({ ventureId: matched.id }),
-          ]);
-
-          if (isMounted) {
-            setDepartments(dList);
-            setTeams(tList);
-            setSections(sList);
-          }
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          setError(err instanceof ApiError ? err.message : 'Failed to load venture dashboard');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadVentureData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [ventureSlug, setActiveVentureId]);
-
-  const formatTitle = (slug: string) =>
-    slug
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-
-  const ventureName = venture?.name || formatTitle(ventureSlug);
+  const { role, department, team } = membership;
+  const isLeader = role !== 'member';
+  const firstName = user.name.split(' ')[0];
 
   return (
-    <AppShell
-      icon={<Building2 className="w-3.5 h-3.5" />}
-      title={`${ventureName} Workspace`}
-      description="Venture overview and department workspaces"
-    >
-      <div className="max-w-7xl mx-auto space-y-6">
+    <AppShell title={membership.venture.name} description="Workspace home">
+      <section className="rounded-2xl border border-[#e4e4e7] bg-white p-6 sm:p-7 shadow-2xs">
+        <p className="text-xs text-[#71717a]">{greeting()},</p>
+        <h2 className="text-2xl font-semibold tracking-tight text-[#09090b] mt-0.5">{firstName}</h2>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <RoleBadge role={role} />
+          {department && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#f4f4f5] px-2 py-1 text-[#3f3f46]">
+              <FolderTree className="w-3.5 h-3.5 text-[#71717a]" /> {department.name}
+            </span>
+          )}
+          {department && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#f4f4f5] px-2 py-1 text-[#3f3f46]">
+              <Network className="w-3.5 h-3.5 text-[#71717a]" /> {team ? team.name : 'No team yet'}
+            </span>
+          )}
+          {role === 'member' && <span className="text-[#71717a]">{ROLE_LABEL[role]}</span>}
+        </div>
+      </section>
 
-        {loading ? (
-          <div className="py-24 flex flex-col items-center justify-center text-[#71717a]">
-            <Loader2 className="w-7 h-7 animate-spin text-[#09090b] mb-2" />
-            <span className="text-xs">Loading {ventureName} dashboard...</span>
-          </div>
-        ) : error ? (
-          <div className="bg-white border border-red-200 rounded-xl p-8 text-center max-w-md mx-auto shadow-xs my-10">
-            <h3 className="text-sm font-bold text-[#09090b]">Unable to load venture</h3>
-            <p className="text-xs text-[#71717a] mt-1">{error}</p>
-            <Link
-              href="/"
-              className="mt-4 inline-block px-4 py-2 bg-[#09090b] text-white text-xs font-medium rounded-lg"
-            >
-              Return to Overview
-            </Link>
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between mb-3">
+          <h3 className="text-sm font-semibold text-[#09090b]">Your sections</h3>
+          <span className="text-xs text-[#71717a]">{membership.sections.length} available</span>
+        </div>
+        {membership.sections.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#d4d4d8] bg-white/60 px-6 py-10 text-center">
+            <Layers className="w-5 h-5 text-[#a1a1aa] mx-auto mb-2" />
+            <p className="text-sm font-medium text-[#09090b]">No sections yet</p>
+            <p className="text-xs text-[#71717a] mt-1 max-w-sm mx-auto">
+              Access is given per person. Ask your team head or department head to open the sections you need.
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Venture Header */}
-            <div className="bg-white border border-[#e4e4e7] rounded-xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#09090b] text-white font-bold text-sm flex items-center justify-center shadow-xs">
-                  {ventureName.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-bold text-[#09090b]">{ventureName}</h1>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 capitalize">
-                      {venture?.status || 'active'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#71717a] mt-0.5 font-mono">
-                    /{ventureSlug} • MeDa Partners Operating Venture
-                  </p>
+            {groups.map(([deptName, list]) => (
+              <div key={deptName}>
+                {groups.length > 1 && <div className="text-xs font-medium text-[#71717a] mb-2">{deptName}</div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {list.map((s) => (
+                    <SectionCard key={s.id} section={s} ventureSlug={ventureSlug} />
+                  ))}
                 </div>
               </div>
-
-              {/* Stats Summary */}
-              <div className="flex items-center gap-4 text-xs text-[#71717a]">
-                <div className="flex items-center gap-1.5">
-                  <FolderTree className="w-4 h-4 text-[#18181b]" />
-                  <span className="font-semibold text-[#09090b]">{departments.length}</span>
-                  <span>departments</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Network className="w-4 h-4 text-[#18181b]" />
-                  <span className="font-semibold text-[#09090b]">{teams.length}</span>
-                  <span>teams</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-[#18181b]" />
-                  <span className="font-semibold text-[#09090b]">{sections.length}</span>
-                  <span>sections</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Departments Hierarchy & Section Cards */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-[#09090b] uppercase font-mono tracking-wider">
-                  Departments & Workflows
-                </h2>
-              </div>
-
-              {departments.length === 0 ? (
-                <div className="p-8 text-center bg-white border border-[#e4e4e7] rounded-xl text-xs text-[#71717a]">
-                  No departments created under this venture yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {departments.map((dept) => {
-                    const deptSections = sections.filter((s) => s.departmentId === dept.id);
-                    const deptTeams = teams.filter((t) => t.departmentId === dept.id);
-
-                    return (
-                      <div
-                        key={dept.id}
-                        className="bg-white border border-[#e4e4e7] rounded-xl p-5 shadow-xs flex flex-col justify-between"
-                      >
-                        <div>
-                          {/* Department Title & Head */}
-                          <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
-                            <div className="flex items-center gap-2">
-                              <FolderTree className="w-4 h-4 text-[#18181b]" />
-                              <h3 className="text-sm font-bold text-[#09090b]">{dept.name}</h3>
-                            </div>
-                            {dept.headUser && (
-                              <div className="flex items-center gap-1 text-[11px] text-[#71717a]">
-                                <Crown className="w-3 h-3 text-amber-500" />
-                                <span className="font-medium text-[#09090b]">
-                                  {dept.headUser.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Teams under this department */}
-                          <div className="mt-3">
-                            <div className="text-[10px] font-mono uppercase text-[#a1a1aa] tracking-wider mb-1.5">
-                              Teams ({deptTeams.length})
-                            </div>
-                            {deptTeams.length === 0 ? (
-                              <span className="text-[11px] text-[#a1a1aa] italic">
-                                No teams created yet
-                              </span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {deptTeams.map((t) => (
-                                  <span
-                                    key={t.id}
-                                    className="text-[11px] px-2 py-0.5 bg-[#fafafa] border border-[#e4e4e7] rounded-md text-[#18181b] flex items-center gap-1"
-                                  >
-                                    <Network className="w-3 h-3 text-[#71717a]" />
-                                    <span>{t.name}</span>
-                                    {t.headUserName && (
-                                      <span title={`Head: ${t.headUserName}`}>
-                                        <Crown className="w-2.5 h-2.5 text-blue-500" />
-                                      </span>
-                                    )}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Operational Sections */}
-                          <div className="mt-4">
-                            <div className="text-[10px] font-mono uppercase text-[#a1a1aa] tracking-wider mb-2">
-                              Operational Sections ({deptSections.length})
-                            </div>
-                            {deptSections.length === 0 ? (
-                              <span className="text-[11px] text-[#a1a1aa] italic">
-                                No sections enabled
-                              </span>
-                            ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {deptSections.map((sec) => (
-                                  <Link
-                                    key={sec.id}
-                                    href={`/${ventureSlug}/${sec.slug}`}
-                                    className="p-2.5 bg-[#fafafa] hover:bg-white border border-[#e4e4e7] hover:border-[#09090b] rounded-lg transition-all group flex items-center justify-between text-xs"
-                                  >
-                                    <div className="flex items-center gap-2 truncate">
-                                      <Layers className="w-3.5 h-3.5 text-[#71717a] group-hover:text-[#09090b]" />
-                                      <span className="font-medium text-[#09090b] truncate">
-                                        {sec.name}
-                                      </span>
-                                    </div>
-                                    <ArrowRight className="w-3.5 h-3.5 text-[#a1a1aa] group-hover:text-[#09090b] transition-transform group-hover:translate-x-0.5 shrink-0" />
-                                  </Link>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         )}
-      </div>
+      </section>
+
+      {isLeader && (
+        <section className="mt-10">
+          <h3 className="text-sm font-semibold text-[#09090b] mb-3">Manage</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <ManageCard
+              href="/employees"
+              icon={Users}
+              title="Employees"
+              text={role === 'team_head' ? 'See the people in your team.' : 'Add people and place them in teams.'}
+            />
+            <ManageCard href="/access" icon={ShieldCheck} title="Section access" text="Decide who can open which section." />
+            <ManageCard
+              href="/teams"
+              icon={Network}
+              title="Teams"
+              text={role === 'team_head' ? 'Your department’s teams.' : 'Create teams and appoint team heads.'}
+            />
+            {(role === 'admin' || role === 'department_head') && (
+              <ManageCard href="/departments" icon={FolderTree} title="Departments" text="Department heads and structure." />
+            )}
+          </div>
+        </section>
+      )}
     </AppShell>
   );
 }

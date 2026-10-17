@@ -9,13 +9,6 @@ import {
   userSections,
 } from '../../db/schema';
 import {
-  SUPPORTED_SECTIONS,
-  SUPPORTED_VENTURES,
-  isSectionImplemented,
-  isVentureSupported,
-  getFeatureRegistryOverview,
-} from '../../config/feature-registry';
-import {
   BadRequestError,
   ConflictError,
   NotFoundError,
@@ -29,6 +22,11 @@ import {
   DevUpdateSectionInput,
 } from './dev.validation';
 
+const RESERVED_VENTURE_SLUGS = new Set([
+  'login', 'dev', 'people', 'employees', 'teams', 'departments', 'access', 'ventures', 'sections',
+  'settings', 'api', 'admin', '_next', 'favicon.ico',
+]);
+
 export class DevService {
   private slugify(text: string): string {
     return text
@@ -38,8 +36,39 @@ export class DevService {
       .replace(/(^-|-$)/g, '');
   }
 
-  getFeatureRegistry() {
-    return getFeatureRegistryOverview();
+  /** Venture slugs become top-level URLs (/{venture}), so they must not shadow app pages. */
+  private assertVentureSlugAllowed(slug: string) {
+    if (RESERVED_VENTURE_SLUGS.has(slug)) {
+      throw new BadRequestError(`"${slug}" is reserved by the app. Choose a different venture slug.`);
+    }
+  }
+
+  /** Section URLs are /{venture}/{section}, so a section slug must be unique across the whole venture. */
+  private async assertSectionSlugFreeInVenture(departmentId: string, slug: string, exceptId?: string) {
+    const [dept] = await db
+      .select({ ventureId: departments.ventureId })
+      .from(departments)
+      .where(eq(departments.id, departmentId))
+      .limit(1);
+    if (!dept) throw new NotFoundError('Target department does not exist');
+
+    const [clash] = await db
+      .select({ id: sections.id, departmentName: departments.name })
+      .from(sections)
+      .innerJoin(departments, eq(sections.departmentId, departments.id))
+      .where(
+        and(
+          eq(departments.ventureId, dept.ventureId),
+          eq(sections.slug, slug),
+          exceptId ? sql`${sections.id} != ${exceptId}` : undefined
+        )
+      )
+      .limit(1);
+    if (clash) {
+      throw new ConflictError(
+        `A section with slug "${slug}" already exists in this venture (department "${clash.departmentName}"). Section slugs must be unique per venture because they form the URL /{venture}/{section}.`
+      );
+    }
   }
 
   /**
@@ -93,7 +122,7 @@ export class DevService {
     for (const m of membershipCounts) {
       ventureMemberMap.set(m.ventureId, (ventureMemberMap.get(m.ventureId) || 0) + m.count);
       deptMemberMap.set(m.departmentId, (deptMemberMap.get(m.departmentId) || 0) + m.count);
-      teamMemberMap.set(m.teamId, (teamMemberMap.get(m.teamId) || 0) + m.count);
+      if (m.teamId) teamMemberMap.set(m.teamId, (teamMemberMap.get(m.teamId) || 0) + m.count);
     }
 
     const sectionUserMap = new Map<string, number>();
@@ -103,7 +132,6 @@ export class DevService {
 
     const ventureTree = allVentures.map((v) => {
       const vDepts = allDepts.filter((d) => d.ventureId === v.id);
-      const isImplemented = isVentureSupported(v.slug);
 
       return {
         id: v.id,
@@ -112,8 +140,6 @@ export class DevService {
         status: v.status,
         createdAt: v.createdAt.toISOString(),
         updatedAt: v.updatedAt.toISOString(),
-        isSupportedInCode: isImplemented,
-        codeRegistryDetails: SUPPORTED_VENTURES[v.slug.toLowerCase()] || null,
         employeeCount: ventureMemberMap.get(v.id) || 0,
         departmentCount: vDepts.length,
         departments: vDepts.map((d) => {
@@ -142,7 +168,6 @@ export class DevService {
               employeeCount: teamMemberMap.get(t.id) || 0,
             })),
             sections: dSecs.map((s) => {
-              const secImplemented = isSectionImplemented(s.slug);
               return {
                 id: s.id,
                 departmentId: s.departmentId,
@@ -151,8 +176,6 @@ export class DevService {
                 status: s.status,
                 createdAt: s.createdAt.toISOString(),
                 updatedAt: s.updatedAt.toISOString(),
-                isImplementedInCode: secImplemented,
-                codeRegistryDetails: SUPPORTED_SECTIONS[s.slug.toLowerCase()] || null,
                 route: `/${v.slug}/${s.slug}`,
                 assignedUserCount: sectionUserMap.get(s.id) || 0,
               };
@@ -163,7 +186,6 @@ export class DevService {
     });
 
     return {
-      registry: getFeatureRegistryOverview(),
       ventures: ventureTree,
       summary: {
         totalVentures: allVentures.length,
@@ -182,6 +204,7 @@ export class DevService {
 
   async createVenture(input: DevCreateVentureInput) {
     const slug = input.slug ? this.slugify(input.slug) : this.slugify(input.name);
+    this.assertVentureSlugAllowed(slug);
 
     const [existing] = await db
       .select({ id: ventures.id })
@@ -204,7 +227,6 @@ export class DevService {
 
     return {
       ...created,
-      isSupportedInCode: isVentureSupported(created.slug),
     };
   }
 
@@ -221,6 +243,7 @@ export class DevService {
 
     if (input.slug && input.slug !== current.slug) {
       const slug = this.slugify(input.slug);
+      this.assertVentureSlugAllowed(slug);
       const [existing] = await db
         .select({ id: ventures.id })
         .from(ventures)
@@ -247,7 +270,6 @@ export class DevService {
 
     return {
       ...updated,
-      isSupportedInCode: isVentureSupported(updated.slug),
     };
   }
 
@@ -468,7 +490,6 @@ export class DevService {
     const rows = await query.orderBy(asc(ventures.name), asc(departments.name), asc(sections.name));
     return rows.map((r) => ({
       ...r,
-      isImplementedInCode: isSectionImplemented(r.slug),
       route: `/${r.ventureSlug}/${r.slug}`,
     }));
   }
@@ -490,18 +511,7 @@ export class DevService {
 
     const slug = input.slug ? this.slugify(input.slug) : this.slugify(input.name);
 
-    // Verify uniqueness within this department
-    const [existing] = await db
-      .select({ id: sections.id })
-      .from(sections)
-      .where(and(eq(sections.departmentId, input.departmentId), eq(sections.slug, slug)))
-      .limit(1);
-
-    if (existing) {
-      throw new ConflictError(
-        `Section with slug "${slug}" already exists in department "${dept.name}". Note: The same section slug can exist in other departments, but must be unique within "${dept.name}".`
-      );
-    }
+    await this.assertSectionSlugFreeInVenture(input.departmentId, slug);
 
     const [created] = await db
       .insert(sections)
@@ -513,12 +523,8 @@ export class DevService {
       })
       .returning();
 
-    const isImplemented = isSectionImplemented(created.slug);
-
     return {
       ...created,
-      isImplementedInCode: isImplemented,
-      codeImplementationDetails: SUPPORTED_SECTIONS[created.slug.toLowerCase()] || null,
     };
   }
 
@@ -535,23 +541,7 @@ export class DevService {
 
     if (input.slug && input.slug !== current.slug) {
       const slug = this.slugify(input.slug);
-      const [existing] = await db
-        .select({ id: sections.id })
-        .from(sections)
-        .where(
-          and(
-            eq(sections.departmentId, current.departmentId),
-            eq(sections.slug, slug),
-            sql`${sections.id} != ${id}`
-          )
-        )
-        .limit(1);
-
-      if (existing) {
-        throw new ConflictError(
-          `Section with slug "${slug}" already exists in this department`
-        );
-      }
+      await this.assertSectionSlugFreeInVenture(current.departmentId, slug, id);
     }
 
     const updateData: Partial<typeof sections.$inferInsert> = {
@@ -569,8 +559,6 @@ export class DevService {
 
     return {
       ...updated,
-      isImplementedInCode: isSectionImplemented(updated.slug),
-      codeImplementationDetails: SUPPORTED_SECTIONS[updated.slug.toLowerCase()] || null,
     };
   }
 

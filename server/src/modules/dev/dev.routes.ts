@@ -16,8 +16,7 @@ router.use(authenticateDev);
 router.post('/auth/logout', (req, res, next) => devController.logout(req, res, next));
 router.get('/auth/me', (req, res, next) => devController.me(req, res, next));
 
-// 2. Feature Registry & Complete Catalog Overview
-router.get('/registry', (req, res, next) => devController.getRegistry(req, res, next));
+// 2. Complete Catalog Overview
 router.get('/overview', (req, res, next) => devController.getCatalogOverview(req, res, next));
 
 // 3. Ventures Catalog Management

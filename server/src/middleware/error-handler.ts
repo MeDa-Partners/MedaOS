@@ -61,19 +61,19 @@ export function errorHandler(
       return;
     }
 
-    // Query canceled due to statement timeout (57014)
-    if (code === '57014') {
-      console.warn('[Database Timeout] Query statement canceled due to timeout:', extractedDbErr.message || 'Timeout');
+    // Query canceled due to statement timeout or connection timeout
+    if (code === '57014' || code === 'CONNECT_TIMEOUT' || code === 'ETIMEDOUT') {
+      console.warn('[Database Timeout]:', code, extractedDbErr.message || 'Timeout');
       sendError(
         res,
         503,
-        'Database query timed out. Please try your request again.'
+        'Database connection timed out. Please try your request again.'
       );
       return;
     }
 
-    // Connection termination or administrator shutdown (57P01, 08006, 08001, etc.)
-    if (code === '57P01' || code === '08006' || code === '08001' || code === '08004') {
+    // Connection termination or connection refused (57P01, 08006, 08001, ECONNRESET, etc.)
+    if (code === '57P01' || code === '08006' || code === '08001' || code === '08004' || code === 'ECONNRESET' || code === 'ECONNREFUSED') {
       console.warn('[Database Connection Error]:', code, extractedDbErr.message);
       sendError(
         res,

@@ -1,65 +1,30 @@
 import { Router } from 'express';
-import { usersController } from './users.controller';
+import { usersController as c } from './users.controller';
 import { authenticate } from '../../middleware/authenticate';
-import { requireEmployeeManagement } from '../../middleware/require-employee-management';
+import { requireLeadership } from '../../middleware/require-leadership';
 
+/**
+ * People management. Only leaders (admin, department heads, team heads) get past the router;
+ * every handler then applies the fine-grained rules in `utils/access.ts`.
+ */
 const router = Router();
 
-// 1. Employee list (GET /) with profiling logs for performance monitoring
-router.get(
-  '/',
-  (req, _res, next) => {
-    const start = Date.now();
-    (req as any)._apiStart = start;
-    console.log('1. API started');
+router.use(authenticate, requireLeadership);
 
-    (req as any)._authStart = Date.now();
-    next();
-  },
-  authenticate,
-  requireEmployeeManagement,
-  (req, _res, next) => {
-    const authStart = (req as any)._authStart || Date.now();
-    console.log('2. Auth:', Date.now() - authStart, 'ms');
-    next();
-  },
-  (req, res, next) => usersController.list(req, res, next)
-);
+router.get('/', c.list);
+router.post('/', c.create);
+router.get('/:id', c.getById);
+router.patch('/:id', c.update);
+router.patch('/:id/status', c.updateStatus);
+router.post('/:id/reset-password', c.resetPassword);
 
-// Employee management endpoints require authentication and Employee Management authorization
-// (Authorized for global administrators and venture team managers with 'employees' section access)
-router.use(authenticate, requireEmployeeManagement);
-router.post('/', (req, res, next) => usersController.create(req, res, next));
-router.get('/:id', (req, res, next) => usersController.getById(req, res, next));
-router.patch('/:id', (req, res, next) => usersController.update(req, res, next));
-router.patch('/:id/status', (req, res, next) =>
-  usersController.updateStatus(req, res, next)
-);
+// Placement: department + team inside a venture
+router.put('/:id/membership', c.setMembership);
+router.delete('/:id/membership/:ventureId', c.removeMembership);
 
-// Assigning organizational membership (venture, department, team)
-router.patch('/:id/membership', (req, res, next) =>
-  usersController.assignMembership(req, res, next)
-);
-router.patch('/:id/team', (req, res, next) =>
-  usersController.assignMembership(req, res, next)
-);
-router.patch('/:id/assignment', (req, res, next) =>
-  usersController.assignMembership(req, res, next)
-);
-router.delete('/:id/membership/:ventureId', (req, res, next) =>
-  usersController.removeMembership(req, res, next)
-);
-router.delete('/:id/assignment/:ventureId', (req, res, next) =>
-  usersController.removeMembership(req, res, next)
-);
-
-// Assigning venture section access
-router.patch('/:id/sections', (req, res, next) =>
-  usersController.assignSections(req, res, next)
-);
-
-router.post('/:id/reset-password', (req, res, next) =>
-  usersController.resetPassword(req, res, next)
-);
+// Section access (user-based)
+router.put('/:id/sections', c.setSections);
+router.post('/:id/sections/:sectionId', c.grantSection);
+router.delete('/:id/sections/:sectionId', c.revokeSection);
 
 export const usersRoutes = router;

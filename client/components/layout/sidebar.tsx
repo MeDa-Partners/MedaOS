@@ -1,574 +1,275 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
-import { Section } from '@/lib/api';
 import {
-  Sidebar as SidebarRoot,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-  SidebarSeparator,
-} from '@/components/ui/sidebar';
-import {
-  LayoutDashboard,
-  TrendingUp,
-  Boxes,
-  Package,
-  Target,
-  Megaphone,
-  Users2,
-  Building2,
-  ChevronDown,
-  ChevronsUpDown,
-  LogOut,
-  KeyRound,
   Check,
-  User as UserIcon,
-  ShieldCheck,
-  Network,
-  FolderTree,
+  ChevronsUpDown,
+  Home,
+  KeyRound,
   Layers,
-  Crown,
+  LogOut,
+  Network,
+  ShieldCheck,
+  Users,
+  FolderTree,
+  X,
 } from 'lucide-react';
-import { ChangePasswordModal } from '../modals/change-password-modal';
+import { useAuth, ROLE_LABEL } from '@/context/auth-context';
+import { SectionRef } from '@/lib/api';
+import { Avatar } from '@/components/ui/avatar';
+import { ChangePasswordModal } from '@/components/modals/change-password-modal';
 
-interface SidebarProps {
-  mobileOpen?: boolean;
-  onCloseMobile?: () => void;
-}
-
-interface DepartmentSectionGroup {
-  departmentId: string;
-  departmentName: string;
-  departmentSlug?: string;
-  sections: Section[];
-}
-
-// Module-level persistent cache across route changes/page remounts
-let savedSidebarScrollTop = 0;
-let savedOpenDepartments: Record<string, boolean> = {};
-
-export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const {
-    user,
-    ventures,
-    allVentures,
-    activeVenture,
-    activeDepartment,
-    activeSections,
-    setActiveVentureId,
-    isAdmin,
-    isDepartmentHead,
-    isTeamHead,
-    hasEmployeeManagementAccess,
-    logout,
-  } = useAuth();
-
-  const [ventureMenuOpen, setVentureMenuOpen] = useState(false);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>(
-    () => savedOpenDepartments
+function NavLink({
+  href,
+  icon: Icon,
+  label,
+  active,
+  onNavigate,
+}: {
+  href: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={`group flex items-center gap-2.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors ${
+        active ? 'bg-[#f4f4f5] text-[#09090b] font-medium' : 'text-[#52525b] hover:bg-[#f4f4f5]/70 hover:text-[#09090b]'
+      }`}
+    >
+      {Icon ? (
+        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[#09090b]' : 'text-[#a1a1aa] group-hover:text-[#52525b]'}`} />
+      ) : (
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ml-1 mr-0.5 ${active ? 'bg-[#09090b]' : 'bg-[#d4d4d8]'}`} />
+      )}
+      <span className="truncate">{label}</span>
+    </Link>
   );
+}
 
-  const handleVentureChange = (targetVenture: { id: string; name: string; slug: string }) => {
-    setActiveVentureId(targetVenture.id);
-    setVentureMenuOpen(false);
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-2.5 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa]">{children}</div>;
+}
 
-    const segments = pathname.split('/').filter(Boolean);
+function VentureSwitcher({ onNavigate }: { onNavigate?: () => void }) {
+  const { memberships, activeVenture, role, setActiveVenture } = useAuth();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
-    if (segments.length === 0) {
-      router.push(`/${targetVenture.slug}`);
-      return;
-    }
-
-    const firstSegment = segments[0];
-    const isVentureRoute =
-      activeVenture?.slug === firstSegment ||
-      ventureOptions.some((vo) => vo.slug === firstSegment);
-
-    if (isVentureRoute) {
-      if (segments.length === 1) {
-        router.push(`/${targetVenture.slug}`);
-      } else if (segments.length >= 2) {
-        const currentSectionSlug = segments[1];
-        const targetConfig =
-          allVentures.find((v) => v.id === targetVenture.id) ||
-          ventures.find((m) => m.venture.id === targetVenture.id)?.venture;
-        const hasSection = targetConfig?.sections?.some(
-          (s) => s.slug === currentSectionSlug
-        );
-
-        if (hasSection) {
-          router.push(`/${targetVenture.slug}/${currentSectionSlug}`);
-        } else {
-          router.push(`/${targetVenture.slug}`);
-        }
-      }
-    }
-  };
-
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Restore scroll position after mount and across route changes
   useEffect(() => {
-    const restoreScroll = () => {
-      const el = contentRef.current;
-      const targetScroll =
-        savedSidebarScrollTop ||
-        (typeof window !== 'undefined'
-          ? Number(sessionStorage.getItem('meda_sidebar_scroll')) || 0
-          : 0);
-
-      if (el && targetScroll > 0) {
-        el.scrollTop = targetScroll;
-      }
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
 
-    restoreScroll();
-    const rafId = requestAnimationFrame(restoreScroll);
-    const timerId = setTimeout(restoreScroll, 60);
+  if (!activeVenture) {
+    return (
+      <div className="mx-3 rounded-lg border border-dashed border-[#e4e4e7] px-3 py-2.5 text-[11px] text-[#71717a]">
+        You are not part of any venture yet.
+      </div>
+    );
+  }
 
-    return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(timerId);
-    };
-  }, [pathname, activeSections]);
+  return (
+    <div ref={ref} className="relative mx-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2.5 rounded-lg border border-[#e4e4e7] bg-white px-2.5 py-2 text-left hover:border-[#d4d4d8] transition-colors cursor-pointer shadow-2xs"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <Avatar name={activeVenture.name} seed={activeVenture.slug} size="md" square />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold text-[#09090b] truncate">{activeVenture.name}</span>
+          <span className="block text-[11px] text-[#71717a] truncate">{role ? ROLE_LABEL[role] : ''}</span>
+        </span>
+        <ChevronsUpDown className="w-3.5 h-3.5 text-[#a1a1aa] shrink-0" />
+      </button>
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const top = e.currentTarget.scrollTop;
-    savedSidebarScrollTop = top;
-    try {
-      sessionStorage.setItem('meda_sidebar_scroll', String(top));
-    } catch {
-      // ignore
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-[#e4e4e7] bg-white p-1 shadow-xl animate-pop-in max-h-80 overflow-y-auto"
+        >
+          <div className="px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa]">Ventures</div>
+          {memberships.map((m) => {
+            const selected = m.venture.id === activeVenture.id;
+            return (
+              <button
+                key={m.venture.id}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  setActiveVenture(m.venture.id);
+                  setOpen(false);
+                  onNavigate?.();
+                  router.push(`/${m.venture.slug}`);
+                }}
+                className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[#f4f4f5] cursor-pointer"
+              >
+                <Avatar name={m.venture.name} seed={m.venture.slug} size="sm" square />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-medium text-[#09090b] truncate">{m.venture.name}</span>
+                  <span className="block text-[10px] text-[#71717a] truncate">
+                    {m.department ? `${m.department.name}${m.team ? ` · ${m.team.name}` : ''}` : ROLE_LABEL[m.role]}
+                  </span>
+                </span>
+                {selected && <Check className="w-3.5 h-3.5 text-[#09090b] shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; onCloseMobile: () => void }) {
+  const pathname = usePathname();
+  const { user, activeMembership, activeVenture, role, isAdmin, logout } = useAuth();
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const sectionGroups = useMemo(() => {
+    const groups = new Map<string, { name: string; sections: SectionRef[] }>();
+    for (const s of activeMembership?.sections ?? []) {
+      const g = groups.get(s.departmentId) ?? { name: s.departmentName, sections: [] };
+      g.sections.push(s);
+      groups.set(s.departmentId, g);
     }
-  };
+    return [...groups.values()];
+  }, [activeMembership]);
 
-  const handleLinkClick = () => {
-    if (contentRef.current) {
-      const top = contentRef.current.scrollTop;
-      savedSidebarScrollTop = top;
-      try {
-        sessionStorage.setItem('meda_sidebar_scroll', String(top));
-      } catch {
-        // ignore
-      }
-    }
-    if (onCloseMobile) {
-      onCloseMobile();
-    }
-  };
+  const isLeaderHere = role === 'admin' || role === 'department_head' || role === 'team_head';
+  const ventureHome = activeVenture ? `/${activeVenture.slug}` : '/';
+  const showDeptLabels = sectionGroups.length > 1;
 
-  // Map route slugs to distinctive, refined icons
-  const getSectionIcon = (slug: string) => {
-    switch (slug) {
-      case 'sales':
-        return <TrendingUp className="w-3.5 h-3.5 shrink-0 text-emerald-600" />;
-      case 'operations':
-        return <Boxes className="w-3.5 h-3.5 shrink-0 text-blue-600" />;
-      case 'orders':
-        return <Package className="w-3.5 h-3.5 shrink-0 text-indigo-600" />;
-      case 'nbd':
-        return <Target className="w-3.5 h-3.5 shrink-0 text-amber-600" />;
-      case 'marketing':
-        return <Megaphone className="w-3.5 h-3.5 shrink-0 text-pink-600" />;
-      case 'employees':
-        return <Users2 className="w-3.5 h-3.5 shrink-0 text-purple-600" />;
-      default:
-        return <Layers className="w-3.5 h-3.5 shrink-0 text-zinc-500" />;
-    }
-  };
+  const content = (
+    <div className="flex flex-col h-full">
+      <div className="h-14 flex items-center gap-2 px-4 shrink-0">
+        <div className="w-7 h-7 rounded-lg bg-[#09090b] text-white flex items-center justify-center text-xs font-bold tracking-tight">
+          M
+        </div>
+        <span className="text-sm font-semibold tracking-tight text-[#09090b]">MeDa OS</span>
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          className="lg:hidden ml-auto p-1.5 rounded-md text-[#71717a] hover:bg-[#f4f4f5] cursor-pointer"
+          aria-label="Close menu"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-  // Group sections by department
-  const departmentGroups = useMemo<DepartmentSectionGroup[]>(() => {
-    const groupsMap = new Map<string, DepartmentSectionGroup>();
-    const businessSections = activeSections.filter((s) => s.slug !== 'employees');
+      <VentureSwitcher onNavigate={onCloseMobile} />
 
-    for (const section of businessSections) {
-      const deptId = section.departmentId || 'general';
-      const deptName =
-        section.departmentName ||
-        (activeDepartment && activeDepartment.id === section.departmentId
-          ? activeDepartment.name
-          : null) ||
-        'General';
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className="pt-4">
+          <NavLink href={ventureHome} icon={Home} label="Home" active={pathname === ventureHome || pathname === '/'} onNavigate={onCloseMobile} />
+        </div>
 
-      if (!groupsMap.has(deptId)) {
-        groupsMap.set(deptId, {
-          departmentId: deptId,
-          departmentName: deptName,
-          departmentSlug: section.departmentSlug,
-          sections: [],
-        });
-      }
+        <GroupLabel>Sections</GroupLabel>
+        {sectionGroups.length === 0 ? (
+          <p className="px-2.5 text-[11px] text-[#a1a1aa] leading-relaxed">
+            No sections yet. Your team or department head can give you access.
+          </p>
+        ) : (
+          sectionGroups.map((group) => (
+            <div key={group.name} className="mb-1">
+              {showDeptLabels && (
+                <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-[#71717a] truncate">{group.name}</div>
+              )}
+              {group.sections.map((s) => (
+                <NavLink
+                  key={s.id}
+                  href={s.route}
+                  label={s.name}
+                  active={pathname === s.route}
+                  icon={showDeptLabels ? undefined : Layers}
+                  onNavigate={onCloseMobile}
+                />
+              ))}
+            </div>
+          ))
+        )}
 
-      groupsMap.get(deptId)!.sections.push(section);
-    }
+        {isLeaderHere && (
+          <>
+            <GroupLabel>Manage</GroupLabel>
+            <NavLink href="/employees" icon={Users} label="Employees" active={pathname.startsWith('/employees')} onNavigate={onCloseMobile} />
+            <NavLink href="/access" icon={ShieldCheck} label="Section access" active={pathname.startsWith('/access')} onNavigate={onCloseMobile} />
+            <NavLink href="/teams" icon={Network} label="Teams" active={pathname.startsWith('/teams')} onNavigate={onCloseMobile} />
+            {(isAdmin || role === 'department_head') && (
+              <NavLink href="/departments" icon={FolderTree} label="Departments" active={pathname.startsWith('/departments')} onNavigate={onCloseMobile} />
+            )}
+          </>
+        )}
+      </nav>
 
-    return Array.from(groupsMap.values());
-  }, [activeSections, activeDepartment]);
-
-  // Toggle department collapsible section
-  const toggleDepartment = (deptId: string) => {
-    setOpenDepartments((prev) => {
-      const next = {
-        ...prev,
-        [deptId]: prev[deptId] !== undefined ? !prev[deptId] : false,
-      };
-      savedOpenDepartments = next;
-      return next;
-    });
-  };
-
-  // Check if a department is open (default to true or if contains active route)
-  const isDeptOpen = (group: DepartmentSectionGroup) => {
-    const containsActiveRoute = group.sections.some((s) => pathname.startsWith(s.route));
-    if (containsActiveRoute) return true;
-    return openDepartments[group.departmentId] ?? true;
-  };
-
-  // Available ventures for switcher
-  const ventureOptions = isAdmin
-    ? allVentures.length > 0
-      ? allVentures
-      : ventures.map((m) => m.venture)
-    : ventures.map((m) => m.venture);
+      {user && (
+        <div className="relative border-t border-[#f0f0f2] p-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-[#f4f4f5] text-left cursor-pointer"
+          >
+            <Avatar name={user.name} seed={user.id} size="md" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-[#09090b] truncate">{user.name}</span>
+              <span className="block text-[11px] text-[#71717a] truncate">{user.email}</span>
+            </span>
+            <ChevronsUpDown className="w-3.5 h-3.5 text-[#a1a1aa]" />
+          </button>
+          {menuOpen && (
+            <div className="absolute bottom-full left-3 right-3 mb-1.5 rounded-xl border border-[#e4e4e7] bg-white p-1 shadow-xl animate-pop-in">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setPasswordOpen(true);
+                }}
+                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-[#09090b] hover:bg-[#f4f4f5] cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-[#71717a]" /> Change password
+              </button>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-red-600 hover:bg-red-50 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <ChangePasswordModal isOpen={passwordOpen} onClose={() => setPasswordOpen(false)} />
+    </div>
+  );
 
   return (
     <>
-      <SidebarRoot mobileOpen={mobileOpen} onCloseMobile={onCloseMobile}>
-        {/* TOP: BRAND & VENTURE SWITCHER */}
-        <SidebarHeader>
-          {/* Logo / Brand Header */}
-          <div className="flex items-center justify-between px-1 pt-1 pb-2 border-b border-[#f0f0f2]">
-            <Link
-              href="/"
-              scroll={false}
-              className="flex items-center gap-2.5 group"
-              onClick={handleLinkClick}
-            >
-              <div className="w-7 h-7 rounded-lg bg-[#09090b] text-white flex items-center justify-center font-bold text-xs tracking-tight shadow-xs">
-                M
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold tracking-tight text-[#09090b] flex items-center gap-1.5">
-                  MeDa Partners
-                  <span className="text-[10px] font-mono px-1 py-0.2 bg-[#f4f4f5] text-[#71717a] rounded-sm font-normal">
-                    OS
-                  </span>
-                </span>
-                <span className="text-[10px] text-[#a1a1aa] tracking-tight">
-                  Multi-Venture Platform
-                </span>
-              </div>
-            </Link>
-          </div>
-
-          {/* Account / Venture Switcher */}
-          <div className="relative pt-1">
-            <button
-              type="button"
-              onClick={() => setVentureMenuOpen(!ventureMenuOpen)}
-              className="w-full p-2 bg-[#fafafa] hover:bg-[#f4f4f5] border border-[#e4e4e7] rounded-lg text-left flex items-center justify-between transition-all group cursor-pointer shadow-2xs"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-6 h-6 rounded-full bg-linear-to-tr from-purple-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-xs">
-                  {activeVenture ? activeVenture.name.slice(0, 2).toUpperCase() : 'M'}
-                </div>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-xs font-semibold text-[#09090b] truncate max-w-[110px]">
-                    {activeVenture ? activeVenture.name : 'Select Venture'}
-                  </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-600 border border-zinc-200 shrink-0">
-                    {isAdmin ? 'Admin' : isDepartmentHead ? 'Head' : 'Member'}
-                  </span>
-                </div>
-              </div>
-              <ChevronsUpDown className="w-3.5 h-3.5 text-[#71717a] shrink-0 group-hover:text-[#09090b] transition-colors" />
-            </button>
-
-            {/* Dropdown Menu */}
-            {ventureMenuOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[#e4e4e7] rounded-lg shadow-lg py-1 animate-in fade-in zoom-in-95 duration-100 max-h-56 overflow-y-auto">
-                <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] uppercase tracking-wider border-b border-[#f0f0f2] flex items-center justify-between">
-                  <span>{isAdmin ? 'All Ventures (Admin)' : 'Assigned Ventures'}</span>
-                  <span className="text-[9px]">{ventureOptions.length}</span>
-                </div>
-
-                {ventureOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-[#a1a1aa] italic">
-                    No ventures assigned
-                  </div>
-                ) : (
-                  ventureOptions.map((v) => {
-                    const isSelected = activeVenture?.id === v.id;
-                    return (
-                      <button
-                        key={v.id}
-                        type="button"
-                        onClick={() => handleVentureChange(v)}
-                        className={`w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-[#f4f4f5] transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'text-[#09090b] font-medium bg-[#fafafa]'
-                            : 'text-[#52525b]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Building2 className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
-                          <span className="truncate">{v.name}</span>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#09090b] shrink-0" />}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        </SidebarHeader>
-
-        {/* MIDDLE: SCROLLABLE NAVIGATION CONTENT (Scroll Position Preserved) */}
-        <SidebarContent ref={contentRef} onScroll={handleScroll}>
-          {/* GROUP: PLATFORM OVERVIEW */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Platform</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <Link href="/" scroll={false} onClick={handleLinkClick}>
-                    <SidebarMenuButton isActive={pathname === '/'}>
-                      <LayoutDashboard className="w-4 h-4 shrink-0" />
-                      <span>Overview</span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* GROUP: DEPARTMENTS & SECTIONS HIERARCHY */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Departments</SidebarGroupLabel>
-
-            <SidebarGroupContent>
-              {departmentGroups.length === 0 ? (
-                <div className="px-3 py-3 text-xs text-[#71717a] bg-[#fafafa] border border-[#e4e4e7] rounded-lg text-center">
-                  <span>No sections enabled in this venture.</span>
-                </div>
-              ) : (
-                <SidebarMenu>
-                  {departmentGroups.map((group) => {
-                    const open = isDeptOpen(group);
-                    const containsActive = group.sections.some((s) =>
-                      pathname.startsWith(s.route)
-                    );
-
-                    return (
-                      <SidebarMenuItem key={group.departmentId}>
-                        {/* Department Header / Accordion Trigger */}
-                        <SidebarMenuButton
-                          size="sm"
-                          onClick={() => toggleDepartment(group.departmentId)}
-                          className={`justify-between ${
-                            containsActive
-                              ? 'text-[#09090b] font-semibold bg-[#fafafa]'
-                              : 'text-[#3f3f46]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FolderTree className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                            <span className="truncate">{group.departmentName}</span>
-                          </div>
-
-                          <ChevronDown
-                            className={`w-3.5 h-3.5 text-[#71717a] transition-transform duration-200 shrink-0 ${
-                              open ? 'rotate-180' : ''
-                            }`}
-                          />
-                        </SidebarMenuButton>
-
-                        {/* Department Sections List (Indented Tree Rail) */}
-                        {open && (
-                          <SidebarMenuSub>
-                            {group.sections.map((section) => {
-                              const isActive = pathname.startsWith(section.route);
-
-                              return (
-                                <SidebarMenuSubItem key={section.id}>
-                                  <Link
-                                    href={section.route}
-                                    scroll={false}
-                                    onClick={handleLinkClick}
-                                    className="block"
-                                  >
-                                    <SidebarMenuSubButton isActive={isActive}>
-                                      {getSectionIcon(section.slug)}
-                                      <span className="truncate capitalize">
-                                        {section.name}
-                                      </span>
-                                      {isActive && (
-                                        <span className="w-1.5 h-1.5 rounded-full bg-[#09090b] ml-auto shrink-0" />
-                                      )}
-                                    </SidebarMenuSubButton>
-                                  </Link>
-                                </SidebarMenuSubItem>
-                              );
-                            })}
-                          </SidebarMenuSub>
-                        )}
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              )}
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* GROUP: MANAGEMENT (Admins, Department Heads, Team Heads) */}
-          {(hasEmployeeManagementAccess || isAdmin || isDepartmentHead || isTeamHead) && (
-            <SidebarGroup>
-              <SidebarGroupLabel>Management</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {/* Employees */}
-                  {hasEmployeeManagementAccess && (
-                    <SidebarMenuItem>
-                      <Link href="/employees" scroll={false} onClick={handleLinkClick}>
-                        <SidebarMenuButton isActive={pathname.startsWith('/employees')}>
-                          <Users2 className="w-4 h-4 shrink-0" />
-                          <span>Employees</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  )}
-
-                  {/* Departments */}
-                  {(isAdmin || isDepartmentHead) && (
-                    <SidebarMenuItem>
-                      <Link href="/departments" scroll={false} onClick={handleLinkClick}>
-                        <SidebarMenuButton isActive={pathname.startsWith('/departments')}>
-                          <FolderTree className="w-4 h-4 shrink-0" />
-                          <span>Departments</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  )}
-
-                  {/* Teams */}
-                  {(isAdmin || isDepartmentHead || isTeamHead) && (
-                    <SidebarMenuItem>
-                      <Link href="/teams" scroll={false} onClick={handleLinkClick}>
-                        <SidebarMenuButton isActive={pathname.startsWith('/teams')}>
-                          <Network className="w-4 h-4 shrink-0" />
-                          <span>Teams</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  )}
-
-                  {/* Sections */}
-                  {(isAdmin || isDepartmentHead) && (
-                    <SidebarMenuItem>
-                      <Link href="/sections" scroll={false} onClick={handleLinkClick}>
-                        <SidebarMenuButton isActive={pathname.startsWith('/sections')}>
-                          <Layers className="w-4 h-4 shrink-0" />
-                          <span>Sections</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  )}
-
-                  {/* Ventures (Admin Only) */}
-                  {isAdmin && (
-                    <SidebarMenuItem>
-                      <Link href="/ventures" scroll={false} onClick={handleLinkClick}>
-                        <SidebarMenuButton isActive={pathname.startsWith('/ventures')}>
-                          <Building2 className="w-4 h-4 shrink-0" />
-                          <span>Ventures</span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-        </SidebarContent>
-
-        {/* BOTTOM: USER PROFILE & SESSION FOOTER */}
-        <SidebarFooter>
-          <div className="flex items-center px-1">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-[#18181b] text-white text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : <UserIcon className="w-3.5 h-3.5" />}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-semibold text-[#09090b] truncate">
-                    {user?.name || 'User'}
-                  </span>
-                  {isAdmin && (
-                    <span title="Global Administrator">
-                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    </span>
-                  )}
-                  {isDepartmentHead && !isAdmin && (
-                    <span title="Department Head">
-                      <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] text-[#71717a] truncate font-mono">
-                  {user?.email}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <SidebarSeparator className="my-1" />
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setChangePasswordOpen(true)}
-              title="Change Password"
-              className="flex-1 px-2 py-1.5 text-[11px] font-medium text-[#52525b] hover:text-[#09090b] hover:bg-white border border-transparent hover:border-[#e4e4e7] rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-[#71717a]" />
-              <span>Password</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={logout}
-              title="Sign Out"
-              className="px-2.5 py-1.5 text-[11px] font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign out</span>
-            </button>
-          </div>
-        </SidebarFooter>
-      </SidebarRoot>
-
-      <ChangePasswordModal
-        isOpen={changePasswordOpen}
-        onClose={() => setChangePasswordOpen(false)}
-      />
+      <aside className="hidden lg:flex w-64 shrink-0 border-r border-[#e4e4e7] bg-white h-screen sticky top-0">
+        <div className="w-full">{content}</div>
+      </aside>
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onCloseMobile} aria-hidden="true" />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-2xl animate-slide-in-left">{content}</aside>
+        </div>
+      )}
     </>
   );
 }

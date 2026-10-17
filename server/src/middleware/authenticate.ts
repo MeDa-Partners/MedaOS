@@ -79,11 +79,12 @@ export async function authenticate(
           .where(eq(sessions.tokenHash, tokenHash))
           .limit(1);
       } catch (queryErr: any) {
+        const errCode = queryErr?.code || queryErr?.cause?.code;
         const isTransient =
-          queryErr?.code === '57014' ||
-          queryErr?.cause?.code === '57014' ||
-          queryErr?.code === 'ECONNRESET' ||
-          queryErr?.code === 'ETIMEDOUT';
+          errCode === '57014' ||
+          errCode === 'ECONNRESET' ||
+          errCode === 'ETIMEDOUT' ||
+          errCode === 'CONNECT_TIMEOUT';
 
         if (isTransient) {
           console.warn('[Auth] Transient DB delay on session lookup, retrying...');

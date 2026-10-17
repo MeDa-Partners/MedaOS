@@ -1,32 +1,9 @@
 import { Router } from 'express';
 import { venturesController } from './ventures.controller';
 import { authenticate } from '../../middleware/authenticate';
-import { ForbiddenError } from '../../utils/errors';
 
+// Creating, renaming and deleting ventures is catalog work done in /dev (see dev module).
 const router = Router();
-
-// Catalog structural mutations (create, edit, delete) are strictly restricted to Dev Admin (/dev)
-router.post('/', (_req, _res, next) => {
-  next(
-    new ForbiddenError(
-      'Venture catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot create ventures.'
-    )
-  );
-});
-router.patch('/:id', (_req, _res, next) => {
-  next(
-    new ForbiddenError(
-      'Venture catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot edit venture definitions.'
-    )
-  );
-});
-router.delete('/:id', (_req, _res, next) => {
-  next(
-    new ForbiddenError(
-      'Venture catalog modifications are restricted to Dev Admin (/dev). Regular administrators cannot delete ventures.'
-    )
-  );
-});
 
 router.use(authenticate);
 

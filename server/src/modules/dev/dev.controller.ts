@@ -61,16 +61,7 @@ export class DevController {
     }
   }
 
-  // ===================== REGISTRY & CATALOG =====================
-
-  async getRegistry(_req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const registry = devService.getFeatureRegistry();
-      sendSuccess(res, registry);
-    } catch (error) {
-      next(error);
-    }
-  }
+  // ===================== CATALOG =====================
 
   async getCatalogOverview(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

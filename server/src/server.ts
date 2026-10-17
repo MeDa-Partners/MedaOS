@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { sqlClient } from './db';
 
 import { bootstrapAdmin } from './db/bootstrap';
+import { upgradeSchema } from './db/upgrade';
 
 const server = app.listen(env.PORT, '0.0.0.0', async () => {
   console.log(`==============================================`);
@@ -12,6 +13,11 @@ const server = app.listen(env.PORT, '0.0.0.0', async () => {
   console.log(` Health check: http://localhost:${env.PORT}/health`);
   console.log(`==============================================`);
 
+  try {
+    await upgradeSchema();
+  } catch {
+    console.error('[Schema] Upgrade failed. The API may not work until it succeeds (run `npm run db:upgrade`).');
+  }
   await bootstrapAdmin();
 });
 

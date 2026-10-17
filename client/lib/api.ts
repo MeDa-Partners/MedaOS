@@ -1,17 +1,65 @@
 /**
- * MeDa Partners Operating System — API Client
+ * MeDa OS — API client.
  *
- * Communicates directly with the Express backend via the configured NEXT_PUBLIC_API_URL.
- * Uses credentials: 'include' for secure HTTP-only cookie session authentication and CORS.
- * No JWTs, no localStorage, no direct database connections.
+ * Talks to the Express backend at NEXT_PUBLIC_API_URL with the HttpOnly session cookie
+ * (credentials: 'include'). Permission rules live on the server; the client only reads the
+ * capability flags the server returns.
  */
+
+// ───────────────────────── Types ─────────────────────────
+
+export type Status = 'active' | 'inactive';
+export type VentureRole = 'admin' | 'department_head' | 'team_head' | 'member';
 
 export interface User {
   id: string;
   name: string;
   email: string;
   isAdmin: boolean;
-  status: 'active' | 'inactive';
+  status: Status;
+}
+
+export interface Venture {
+  id: string;
+  name: string;
+  slug: string;
+  status: Status;
+  departmentCount?: number;
+  employeeCount?: number;
+}
+
+export interface SectionRef {
+  id: string;
+  departmentId: string;
+  departmentName: string;
+  departmentSlug: string;
+  name: string;
+  slug: string;
+  route: string;
+  status: Status;
+}
+
+export interface VentureMembership {
+  venture: Venture;
+  department: { id: string; ventureId: string; name: string; slug: string; headUserId: string | null } | null;
+  team: { id: string; departmentId: string; name: string; slug: string; headUserId: string | null } | null;
+  role: VentureRole;
+  sections: SectionRef[];
+}
+
+export interface AuthData {
+  user: User;
+  ventures: VentureMembership[];
+  departmentsLed: string[];
+  teamsLed: string[];
+  isDepartmentHead: boolean;
+  isTeamHead: boolean;
+}
+
+export interface PersonRef {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export interface Department {
@@ -22,684 +70,297 @@ export interface Department {
   name: string;
   slug: string;
   headUserId: string | null;
-  headUserName?: string | null;
-  headUserEmail?: string | null;
-  headUser?: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
-  status: 'active' | 'inactive';
+  headUser: PersonRef | null;
+  status: Status;
   teamCount: number;
   sectionCount: number;
-  createdAt: string;
-  updatedAt: string;
+  memberCount: number;
+  canManage: boolean;
 }
 
 export interface Team {
   id: string;
   departmentId: string;
-  departmentName?: string;
-  departmentSlug?: string;
+  departmentName: string;
   ventureId: string;
-  ventureName?: string;
-  ventureSlug?: string;
+  ventureSlug: string;
   name: string;
   slug: string;
   headUserId: string | null;
-  headUserName?: string | null;
-  headUserEmail?: string | null;
-  headUser?: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
-  status: 'active' | 'inactive';
-  memberCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface Venture {
-  id: string;
-  name: string;
-  slug: string;
-  status?: string;
-  departmentCount?: number;
-  teamCount?: number;
-  sectionCount?: number;
-  employeeCount?: number;
-  sections?: Section[];
-  createdAt?: string;
-  updatedAt?: string;
+  headUser: PersonRef | null;
+  status: Status;
+  memberCount: number;
+  canManage: boolean;
+  members?: (PersonRef & { status: Status; isTeamHead: boolean })[];
 }
 
 export interface Section {
   id: string;
   departmentId: string;
-  departmentName?: string;
-  departmentSlug?: string;
-  ventureId?: string;
-  ventureName?: string;
-  ventureSlug?: string;
+  departmentName: string;
+  ventureId: string;
+  ventureSlug: string;
   name: string;
   slug: string;
   route: string;
-  status: 'active' | 'inactive';
-  userCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  status: Status;
+  userCount: number;
 }
 
-export interface UserVentureMembership {
-  venture: {
-    id: string;
-    name: string;
-    slug: string;
-    status?: string;
-    sections?: Section[];
+export interface EmployeeMembership {
+  ventureId: string;
+  ventureName: string;
+  ventureSlug: string;
+  departmentId: string;
+  departmentName: string;
+  isDepartmentHead: boolean;
+  teamId: string | null;
+  teamName: string | null;
+  isTeamHead: boolean;
+  sections: { id: string; name: string; slug: string; route: string }[];
+  capabilities: {
+    canChangeTeam: boolean;
+    canManageSections: boolean;
+    /** null = every section of the department. */
+    grantableSectionIds: string[] | null;
+    canRemove: boolean;
   };
-  department?: {
-    id: string;
-    ventureId: string;
-    name: string;
-    slug: string;
-    headUserId: string | null;
-  } | null;
-  team?: {
-    id: string;
-    departmentId?: string;
-    ventureId?: string;
-    name: string;
-    slug: string;
-    headUserId?: string | null;
-  } | null;
-  sections: Section[];
 }
 
-export interface AuthData {
-  user: User;
-  ventures: UserVentureMembership[];
-  allVentures?: Venture[];
-  allSections?: Section[];
-  departmentsLed?: string[];
-  teamsLed?: string[];
-  isDepartmentHead?: boolean;
-  isTeamHead?: boolean;
-}
-
-export interface EmployeeResponseItem {
+export interface Employee {
   id: string;
   name: string;
   email: string;
   isAdmin: boolean;
-  status: 'active' | 'inactive';
+  status: Status;
   createdAt: string;
-  updatedAt: string;
-  ventures: {
-    ventureId: string;
-    ventureName: string;
-    ventureSlug: string;
-    departmentId: string;
-    departmentName: string;
-    departmentSlug: string;
-    isDepartmentHead?: boolean;
-    teamId: string;
-    teamName: string;
-    teamSlug: string;
-    isTeamHead?: boolean;
-    sections: {
-      id: string;
-      name: string;
-      slug: string;
-      route: string;
-    }[];
-  }[];
+  ventures: EmployeeMembership[];
+  canEditAccount: boolean;
 }
 
-export interface EmployeeListResponse {
-  users: EmployeeResponseItem[];
+export interface EmployeeList {
+  users: Employee[];
   total: number;
   page: number;
   limit: number;
 }
 
-export interface DevVentureOverviewItem {
+export interface SectionAccessResult {
+  allowed: boolean;
+  reason?: string;
+  section?: {
+    id: string;
+    name: string;
+    slug: string;
+    status: Status;
+    departmentId: string;
+    departmentName: string;
+    ventureId: string;
+    ventureName: string;
+    ventureSlug: string;
+  };
+}
+
+export interface DevSection {
+  id: string;
+  departmentId: string;
+  name: string;
+  slug: string;
+  status: Status;
+  route: string;
+  assignedUserCount: number;
+}
+
+export interface DevDepartment {
+  id: string;
+  ventureId: string;
+  name: string;
+  slug: string;
+  headUserId: string | null;
+  status: Status;
+  employeeCount: number;
+  teamCount: number;
+  sectionCount: number;
+  sections: DevSection[];
+}
+
+export interface DevVenture {
   id: string;
   name: string;
   slug: string;
-  status: 'active' | 'inactive';
-  createdAt: string;
-  updatedAt: string;
-  isSupportedInCode: boolean;
+  status: Status;
   employeeCount: number;
   departmentCount: number;
-  departments: {
-    id: string;
-    ventureId: string;
-    name: string;
-    slug: string;
-    headUserId: string | null;
-    status: 'active' | 'inactive';
-    createdAt: string;
-    updatedAt: string;
-    employeeCount: number;
-    teamCount: number;
-    sectionCount: number;
-    teams: {
-      id: string;
-      departmentId: string;
-      name: string;
-      slug: string;
-      headUserId: string | null;
-      status: 'active' | 'inactive';
-      employeeCount: number;
-    }[];
-    sections: {
-      id: string;
-      departmentId: string;
-      name: string;
-      slug: string;
-      status: 'active' | 'inactive';
-      createdAt: string;
-      updatedAt: string;
-      isImplementedInCode: boolean;
-      route: string;
-      assignedUserCount: number;
-    }[];
-  }[];
+  departments: DevDepartment[];
 }
 
-export interface DevCatalogOverview {
-  registry: {
-    sections: {
-      key: string;
-      name: string;
-      description: string;
-      routeTemplate: string;
-      status: string;
-    }[];
-    ventures: {
-      slug: string;
-      name: string;
-      description: string;
-      supportedSectionKeys: string[];
-    }[];
-  };
-  ventures: DevVentureOverviewItem[];
-  summary: {
-    totalVentures: number;
-    totalDepartments: number;
-    totalTeams: number;
-    totalSections: number;
-  };
+export interface DevCatalog {
+  ventures: DevVenture[];
+  summary: { totalVentures: number; totalDepartments: number; totalTeams: number; totalSections: number };
 }
 
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  message?: string;
-  data: T;
-  error?: {
-    message: string;
-    details?: unknown;
-  };
-}
+// ───────────────────────── Transport ─────────────────────────
 
 export class ApiError extends Error {
-  public statusCode: number;
-  public details?: unknown;
-
-  constructor(message: string, statusCode: number = 500, details?: unknown) {
+  constructor(
+    message: string,
+    public statusCode: number = 500,
+    public details?: unknown
+  ) {
     super(message);
     this.name = 'ApiError';
-    this.statusCode = statusCode;
-    this.details = details;
   }
 }
 
-// Direct backend API endpoint URL resolution
 export function getBaseUrl(): string {
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:5000/api/v1';
-  let cleanedUrl = rawApiUrl.replace(/\/+$/, '');
-  if (!cleanedUrl.endsWith('/api/v1')) {
-    cleanedUrl = `${cleanedUrl}/api/v1`;
-  }
+  let url = (process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+  if (!url.endsWith('/api/v1')) url = `${url}/api/v1`;
 
-  // If in browser and accessed via LAN IP or custom domain, dynamically map localhost to current host
-  if (typeof window !== 'undefined' && window.location) {
-    const currentHost = window.location.hostname;
-    if (
-      currentHost &&
-      currentHost !== 'localhost' &&
-      currentHost !== '127.0.0.1' &&
-      (cleanedUrl.includes('localhost') || cleanedUrl.includes('127.0.0.1'))
-    ) {
-      cleanedUrl = cleanedUrl
-        .replace('//localhost:', `//${currentHost}:`)
-        .replace('//localhost/', `//${currentHost}/`)
-        .replace('//127.0.0.1:', `//${currentHost}:`)
-        .replace('//127.0.0.1/', `//${currentHost}/`);
+  // When the app is opened over the LAN, point "localhost" at the same host.
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      url = url.replace(/\/\/(localhost|127\.0\.0\.1)([:/])/, `//${host}$2`);
     }
   }
-
-  return cleanedUrl;
+  return url;
 }
 
-let activeVentureHeader: string | null = null;
-
-export function setActiveVentureHeader(ventureId: string | null) {
-  activeVentureHeader = ventureId;
-}
-
-async function request<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${getBaseUrl()}${cleanEndpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(activeVentureHeader ? { 'X-Venture-Id': activeVentureHeader } : {}),
-    ...(options.headers as Record<string, string>),
-  };
-
-  const response = await fetch(url, {
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${getBaseUrl()}${endpoint}`, {
     ...options,
-    headers,
-    credentials: 'include', // Always send and receive HTTP-only session cookies
+    headers: { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) },
+    credentials: 'include',
   });
 
-  let json: ApiResponse<T>;
+  let json: { success?: boolean; data?: T; message?: string; error?: { message: string; details?: unknown } };
   try {
     json = await response.json();
   } catch {
-    throw new ApiError(
-      `Network response could not be parsed (${response.statusText})`,
-      response.status
-    );
+    throw new ApiError(`Server returned an unreadable response (${response.status})`, response.status);
   }
 
   if (!response.ok || !json.success) {
-    const errorMsg = json?.error?.message || json?.message || 'Request failed';
-    throw new ApiError(errorMsg, response.status, json?.error?.details);
+    throw new ApiError(json?.error?.message || json?.message || 'Request failed', response.status, json?.error?.details);
   }
-
-  return json.data;
+  return json.data as T;
 }
+
+const qs = (params: Record<string, string | number | boolean | undefined | null>) => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
+  }
+  const s = search.toString();
+  return s ? `?${s}` : '';
+};
+
+const send = (method: string, body?: unknown): RequestInit => ({
+  method,
+  ...(body !== undefined && { body: JSON.stringify(body) }),
+});
+
+export function errorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+// ───────────────────────── Endpoints ─────────────────────────
 
 export const api = {
   auth: {
-    login: (email: string, password: string) =>
-      request<AuthData>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      }),
-
-    logout: () =>
-      request<null>('/auth/logout', {
-        method: 'POST',
-      }),
-
-    me: () => request<AuthData>('/auth/me', { method: 'GET' }),
-
+    login: (email: string, password: string) => request<AuthData>('/auth/login', send('POST', { email, password })),
+    logout: () => request<null>('/auth/logout', send('POST')),
+    me: () => request<AuthData>('/auth/me'),
     changePassword: (currentPassword: string, newPassword: string) =>
-      request<null>('/auth/change-password', {
-        method: 'PATCH',
-        body: JSON.stringify({ currentPassword, newPassword }),
-      }),
-  },
-
-  departments: {
-    list: (ventureId?: string) => {
-      const qs = ventureId && ventureId !== 'undefined' && ventureId !== 'null' ? `?ventureId=${encodeURIComponent(ventureId)}` : '';
-      return request<Department[]>(`/departments${qs}`);
-    },
-    getById: (id: string) => request<Department>(`/departments/${id}`),
-    create: (data: {
-      ventureId: string;
-      name: string;
-      slug?: string;
-      headUserId?: string | null;
-      status?: 'active' | 'inactive';
-    }) =>
-      request<Department>('/departments', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (
-      id: string,
-      data: {
-        name?: string;
-        slug?: string;
-        headUserId?: string | null;
-        status?: 'active' | 'inactive';
-      }
-    ) =>
-      request<Department>(`/departments/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-    assignHead: (id: string, headUserId: string | null) =>
-      request<Department>(`/departments/${id}/head`, {
-        method: 'PATCH',
-        body: JSON.stringify({ headUserId }),
-      }),
-  },
-
-  teams: {
-    list: (options?: { departmentId?: string; ventureId?: string } | string) => {
-      let qs = '';
-      if (typeof options === 'string' && options && options !== 'undefined' && options !== 'null') {
-        qs = `?ventureId=${encodeURIComponent(options)}`;
-      } else if (options && typeof options === 'object') {
-        const params = new URLSearchParams();
-        if (options.departmentId && options.departmentId !== 'undefined' && options.departmentId !== 'null') {
-          params.set('departmentId', options.departmentId);
-        }
-        if (options.ventureId && options.ventureId !== 'undefined' && options.ventureId !== 'null') {
-          params.set('ventureId', options.ventureId);
-        }
-        qs = params.toString() ? `?${params.toString()}` : '';
-      }
-      return request<Team[]>(`/teams${qs}`);
-    },
-    getById: (id: string) => request<Team>(`/teams/${id}`),
-    create: (data: {
-      departmentId: string;
-      name: string;
-      slug?: string;
-      headUserId?: string | null;
-      status?: 'active' | 'inactive';
-    }) =>
-      request<Team>('/teams', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (
-      id: string,
-      data: {
-        name?: string;
-        slug?: string;
-        headUserId?: string | null;
-        status?: 'active' | 'inactive';
-      }
-    ) =>
-      request<Team>(`/teams/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-    assignHead: (id: string, headUserId: string | null) =>
-      request<Team>(`/teams/${id}/head`, {
-        method: 'PATCH',
-        body: JSON.stringify({ headUserId }),
-      }),
+      request<null>('/auth/change-password', send('PATCH', { currentPassword, newPassword })),
   },
 
   ventures: {
     list: () => request<Venture[]>('/ventures'),
-    getById: (id: string) => request<Venture>(`/ventures/${id}`),
-    create: (data: {
-      name: string;
-      slug: string;
-      status?: 'active' | 'inactive';
-    }) =>
-      request<Venture>('/ventures', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (
-      id: string,
-      data: {
-        name?: string;
-        slug?: string;
-        status?: 'active' | 'inactive';
-      }
-    ) =>
-      request<Venture>(`/ventures/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-    testAccess: (ventureId: string) =>
-      request<{ allowed: boolean; message: string; ventureId: string }>(
-        `/ventures/${ventureId}/test-access`
-      ),
+  },
+
+  departments: {
+    list: (ventureId?: string) => request<Department[]>(`/departments${qs({ ventureId })}`),
+    assignHead: (id: string, headUserId: string | null) =>
+      request<Department>(`/departments/${id}/head`, send('PATCH', { headUserId })),
+  },
+
+  teams: {
+    list: (params: { ventureId?: string; departmentId?: string } = {}) => request<Team[]>(`/teams${qs(params)}`),
+    get: (id: string) => request<Team>(`/teams/${id}`),
+    create: (data: { departmentId: string; name: string }) => request<Team>('/teams', send('POST', data)),
+    update: (id: string, data: { name?: string; status?: Status }) => request<Team>(`/teams/${id}`, send('PATCH', data)),
+    assignHead: (id: string, headUserId: string | null) =>
+      request<Team>(`/teams/${id}/head`, send('PATCH', { headUserId })),
+    remove: (id: string) => request<null>(`/teams/${id}`, send('DELETE')),
   },
 
   sections: {
-    list: (options?: { departmentId?: string; ventureId?: string }) => {
-      let qs = '';
-      if (options) {
-        const params = new URLSearchParams();
-        if (options.departmentId && options.departmentId !== 'undefined' && options.departmentId !== 'null') {
-          params.set('departmentId', options.departmentId);
-        }
-        if (options.ventureId && options.ventureId !== 'undefined' && options.ventureId !== 'null') {
-          params.set('ventureId', options.ventureId);
-        }
-        qs = params.toString() ? `?${params.toString()}` : '';
-      }
-      return request<Section[]>(`/sections${qs}`);
-    },
-    getById: (id: string) => request<Section>(`/sections/${id}`),
-    create: (data: {
-      departmentId: string;
-      name: string;
-      slug?: string;
-      status?: 'active' | 'inactive';
-    }) =>
-      request<Section>('/sections', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (
-      id: string,
-      data: {
-        name?: string;
-        slug?: string;
-        status?: 'active' | 'inactive';
-      }
-    ) =>
-      request<Section>(`/sections/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-    updateStatus: (id: string, status: 'active' | 'inactive') =>
-      request<Section>(`/sections/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      }),
-    checkAccess: (sectionSlug: string) =>
-      request<{
-        allowed: boolean;
-        section: string;
-        userId?: string;
-        ventureId?: string;
-        message: string;
-      }>(`/sections/${sectionSlug}/access-check`),
+    list: (params: { ventureId?: string; departmentId?: string } = {}) => request<Section[]>(`/sections${qs(params)}`),
+    checkAccess: (ventureSlug: string, sectionSlug: string) =>
+      request<SectionAccessResult>(`/sections/${encodeURIComponent(sectionSlug)}/access-check${qs({ ventureId: ventureSlug })}`),
   },
 
   employees: {
     list: (params: {
-      page?: number;
-      limit?: number;
-      search?: string;
       ventureId?: string;
       departmentId?: string;
       teamId?: string;
-    } = {}) => {
-      const query = new URLSearchParams();
-      if (params.page) query.set('page', params.page.toString());
-      if (params.limit) query.set('limit', params.limit.toString());
-      if (params.search && params.search.trim()) query.set('search', params.search.trim());
-      if (params.ventureId && params.ventureId !== 'undefined' && params.ventureId !== 'null') {
-        query.set('ventureId', params.ventureId);
-      }
-      if (params.departmentId && params.departmentId !== 'undefined' && params.departmentId !== 'null') {
-        query.set('departmentId', params.departmentId);
-      }
-      if (params.teamId && params.teamId !== 'undefined' && params.teamId !== 'null') {
-        query.set('teamId', params.teamId);
-      }
-      const qs = query.toString() ? `?${query.toString()}` : '';
-      return request<EmployeeListResponse>(`/users${qs}`);
-    },
-
-    getById: (id: string) => request<EmployeeResponseItem>(`/users/${id}`),
-
+      search?: string;
+      includeUnassigned?: boolean;
+      page?: number;
+      limit?: number;
+    } = {}) => request<EmployeeList>(`/users${qs(params)}`),
+    get: (id: string) => request<Employee>(`/users/${id}`),
     create: (data: {
       name: string;
       email: string;
       password: string;
-      ventureId?: string;
       departmentId?: string;
-      teamId?: string;
+      teamId?: string | null;
       sectionIds?: string[];
-      status?: 'active' | 'inactive';
-    }) =>
-      request<EmployeeResponseItem>('/users', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-
-    update: (id: string, data: { name?: string; email?: string }) =>
-      request<EmployeeResponseItem>(`/users/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-
-    updateStatus: (id: string, status: 'active' | 'inactive') =>
-      request<EmployeeResponseItem>(`/users/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      }),
-
-    assignMembership: (
-      id: string,
-      data: { ventureId: string; departmentId: string; teamId: string }
-    ) =>
-      request<EmployeeResponseItem>(`/users/${id}/membership`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-
-    assignTeam: (id: string, data: { ventureId: string; departmentId: string; teamId: string }) =>
-      request<EmployeeResponseItem>(`/users/${id}/membership`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-
-    removeMembership: (id: string, ventureId: string) =>
-      request<EmployeeResponseItem>(`/users/${id}/membership/${ventureId}`, {
-        method: 'DELETE',
-      }),
-
-    removeVenture: (id: string, ventureId: string) =>
-      request<EmployeeResponseItem>(`/users/${id}/membership/${ventureId}`, {
-        method: 'DELETE',
-      }),
-
-    assignSections: (id: string, data: { ventureId?: string; sectionIds: string[] }) =>
-      request<EmployeeResponseItem>(`/users/${id}/sections`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-
+    }) => request<Employee>('/users', send('POST', data)),
+    update: (id: string, data: { name?: string; email?: string }) => request<Employee>(`/users/${id}`, send('PATCH', data)),
+    setStatus: (id: string, status: Status) => request<Employee>(`/users/${id}/status`, send('PATCH', { status })),
     resetPassword: (id: string, newPassword: string) =>
-      request<null>(`/users/${id}/reset-password`, {
-        method: 'POST',
-        body: JSON.stringify({ newPassword }),
-      }),
+      request<null>(`/users/${id}/reset-password`, send('POST', { newPassword })),
+    setMembership: (id: string, data: { departmentId: string; teamId: string | null }) =>
+      request<Employee>(`/users/${id}/membership`, send('PUT', data)),
+    removeMembership: (id: string, ventureId: string) =>
+      request<Employee>(`/users/${id}/membership/${ventureId}`, send('DELETE')),
+    setSections: (id: string, departmentId: string, sectionIds: string[]) =>
+      request<Employee>(`/users/${id}/sections`, send('PUT', { departmentId, sectionIds })),
+    grantSection: (id: string, sectionId: string) => request<Employee>(`/users/${id}/sections/${sectionId}`, send('POST')),
+    revokeSection: (id: string, sectionId: string) =>
+      request<Employee>(`/users/${id}/sections/${sectionId}`, send('DELETE')),
   },
 
   dev: {
-    login: (credentials: { username: string; password: string }) =>
-      request<{ username: string; isDeveloper: boolean }>('/dev/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      }),
-
-    logout: () =>
-      request<null>('/dev/auth/logout', {
-        method: 'POST',
-      }),
-
-    me: () =>
-      request<{ username: string; isDeveloper: boolean }>('/dev/auth/me'),
-
-    getRegistry: () =>
-      request<{ sections: unknown[]; ventures: unknown[] }>('/dev/registry'),
-
-    getCatalogOverview: () =>
-      request<DevCatalogOverview>('/dev/overview'),
-
+    login: (username: string, password: string) =>
+      request<{ username: string }>('/dev/auth/login', send('POST', { username, password })),
+    logout: () => request<null>('/dev/auth/logout', send('POST')),
+    me: () => request<{ username: string }>('/dev/auth/me'),
+    catalog: () => request<DevCatalog>('/dev/overview'),
     ventures: {
-      list: () => request<Venture[]>('/dev/ventures'),
-      create: (data: { name: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Venture>('/dev/ventures', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }),
-      update: (id: string, data: { name?: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Venture>(`/dev/ventures/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(data),
-        }),
-      delete: (id: string, force?: boolean) =>
-        request<null>(`/dev/ventures/${id}${force ? '?force=true' : ''}`, {
-          method: 'DELETE',
-        }),
+      create: (data: { name: string; slug?: string; status?: Status }) => request<Venture>('/dev/ventures', send('POST', data)),
+      update: (id: string, data: { name?: string; slug?: string; status?: Status }) =>
+        request<Venture>(`/dev/ventures/${id}`, send('PATCH', data)),
+      remove: (id: string, force = false) => request<null>(`/dev/ventures/${id}${qs({ force: force || undefined })}`, send('DELETE')),
     },
-
     departments: {
-      list: (ventureId?: string) =>
-        request<Department[]>(`/dev/departments${ventureId ? `?ventureId=${ventureId}` : ''}`),
-      create: (data: { ventureId: string; name: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Department>('/dev/departments', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }),
-      update: (id: string, data: { name?: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Department>(`/dev/departments/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(data),
-        }),
-      delete: (id: string, force?: boolean) =>
-        request<null>(`/dev/departments/${id}${force ? '?force=true' : ''}`, {
-          method: 'DELETE',
-        }),
+      create: (data: { ventureId: string; name: string; slug?: string; status?: Status }) =>
+        request<Department>('/dev/departments', send('POST', data)),
+      update: (id: string, data: { name?: string; slug?: string; status?: Status }) =>
+        request<Department>(`/dev/departments/${id}`, send('PATCH', data)),
+      remove: (id: string, force = false) =>
+        request<null>(`/dev/departments/${id}${qs({ force: force || undefined })}`, send('DELETE')),
     },
-
     sections: {
-      list: (options?: { departmentId?: string; ventureId?: string }) => {
-        let qs = '';
-        if (options) {
-          const params = new URLSearchParams();
-          if (options.departmentId) params.set('departmentId', options.departmentId);
-          if (options.ventureId) params.set('ventureId', options.ventureId);
-          qs = params.toString() ? `?${params.toString()}` : '';
-        }
-        return request<Section[]>(`/dev/sections${qs}`);
-      },
-      create: (data: { departmentId: string; name: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Section>('/dev/sections', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }),
-      update: (id: string, data: { name?: string; slug?: string; status?: 'active' | 'inactive' }) =>
-        request<Section>(`/dev/sections/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(data),
-        }),
-      delete: (id: string, force?: boolean) =>
-        request<null>(`/dev/sections/${id}${force ? '?force=true' : ''}`, {
-          method: 'DELETE',
-        }),
+      create: (data: { departmentId: string; name: string; slug?: string; status?: Status }) =>
+        request<Section>('/dev/sections', send('POST', data)),
+      update: (id: string, data: { name?: string; slug?: string; status?: Status }) =>
+        request<Section>(`/dev/sections/${id}`, send('PATCH', data)),
+      remove: (id: string, force = false) => request<null>(`/dev/sections/${id}${qs({ force: force || undefined })}`, send('DELETE')),
     },
-  },
-
-  // Alias users to employees
-  get users() {
-    return this.employees;
   },
 };

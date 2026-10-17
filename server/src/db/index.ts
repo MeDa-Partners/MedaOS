@@ -14,8 +14,8 @@ export const sqlClient = postgres(env.DATABASE_URL, {
   prepare: false, // Essential for Supabase PgBouncer transaction mode
   ssl: isRemoteDb ? 'require' : false,
   max: 15, // Keep sufficient connections for concurrent browser requests over pooler
-  idle_timeout: 10,
-  connect_timeout: 20,
+  idle_timeout: 60, // Keep pooled connections alive up to 60s to prevent constant reconnections
+  connect_timeout: 30, // 30s timeout to accommodate transient remote network latency
   max_lifetime: 60 * 30, // 30 minutes max connection lifetime
   connection: {
     statement_timeout: 15000, // 15s statement timeout in Postgres

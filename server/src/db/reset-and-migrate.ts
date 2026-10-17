@@ -136,14 +136,14 @@ export async function resetAndMigrate() {
     CREATE INDEX IF NOT EXISTS "sections_status_idx" ON "sections" ("status");
   `);
 
-  // User Memberships (User has exactly 1 Department and 1 Team per Venture)
+  // User Memberships (User has exactly 1 Department per Venture, and at most 1 Team inside it)
   await sqlClient.unsafe(`
     CREATE TABLE IF NOT EXISTS "user_memberships" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
       "venture_id" uuid NOT NULL REFERENCES "ventures"("id") ON DELETE CASCADE,
       "department_id" uuid NOT NULL REFERENCES "departments"("id") ON DELETE CASCADE,
-      "team_id" uuid NOT NULL REFERENCES "teams"("id") ON DELETE CASCADE,
+      "team_id" uuid REFERENCES "teams"("id") ON DELETE SET NULL,
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
     );

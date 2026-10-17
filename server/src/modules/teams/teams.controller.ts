@@ -29,7 +29,7 @@ export class TeamsController {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = getRouteParam(req.params.id);
-      const team = await teamsService.getTeamById(id, this.getRequester(req));
+      const team = await teamsService.getTeam(id, this.getRequester(req));
       sendSuccess(res, team);
     } catch (error) {
       next(error);
