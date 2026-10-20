@@ -59,6 +59,7 @@ export const devCreateSectionSchema = z.object({
     .max(100)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
     .optional(),
+  description: z.string().trim().max(500).nullable().optional(),
   status: z.enum(['active', 'inactive']).default('active'),
 });
 
@@ -70,6 +71,7 @@ export const devUpdateSectionSchema = z.object({
     .max(100)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
     .optional(),
+  description: z.string().trim().max(500).nullable().optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 

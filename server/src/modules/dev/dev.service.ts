@@ -173,6 +173,7 @@ export class DevService {
                 departmentId: s.departmentId,
                 name: s.name,
                 slug: s.slug,
+                description: s.description,
                 status: s.status,
                 createdAt: s.createdAt.toISOString(),
                 updatedAt: s.updatedAt.toISOString(),
@@ -472,6 +473,7 @@ export class DevService {
         ventureSlug: ventures.slug,
         name: sections.name,
         slug: sections.slug,
+        description: sections.description,
         status: sections.status,
         createdAt: sections.createdAt,
         updatedAt: sections.updatedAt,
@@ -519,6 +521,7 @@ export class DevService {
         departmentId: input.departmentId,
         name: input.name.trim(),
         slug,
+        description: input.description || null,
         status: input.status,
       })
       .returning();
@@ -549,6 +552,7 @@ export class DevService {
     };
     if (input.name) updateData.name = input.name.trim();
     if (input.slug) updateData.slug = this.slugify(input.slug);
+    if (input.description !== undefined) updateData.description = input.description || null;
     if (input.status) updateData.status = input.status;
 
     const [updated] = await db

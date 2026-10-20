@@ -16,6 +16,8 @@ import { venturesRoutes } from './modules/ventures/ventures.routes';
 import { sectionsRoutes } from './modules/sections/sections.routes';
 import { departmentsRoutes } from './modules/departments/departments.routes';
 import { devRoutes } from './modules/dev/dev.routes';
+import { syncRoutes } from './modules/sync/sync.routes';
+import { ordersRoutes, shiftsRoutes } from './modules/orders/orders.routes';
 
 export function createApp(): Express {
   const app: Express = express();
@@ -113,6 +115,9 @@ export function createApp(): Express {
   apiRouter.use('/ventures', venturesRoutes);
   apiRouter.use('/sections', sectionsRoutes);
   apiRouter.use('/dev', devRoutes);
+  apiRouter.use('/sync', syncRoutes);
+  apiRouter.use('/orders', ordersRoutes);
+  apiRouter.use('/shifts', shiftsRoutes);
 
   // Mount at standard /api/v1 prefix
   app.use('/api/v1', apiRouter);

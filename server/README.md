@@ -43,6 +43,25 @@ re-derives rules.
 - `sections`: `GET /`, `GET /:slug/access-check?ventureId=<id|slug>`
 - `dev` (separate developer login): catalog CRUD for ventures, departments, sections, plus `GET /overview`
 
+### WayVeda COD verification (`src/modules/orders`, `src/modules/shopify`)
+
+All take `?ventureId=<id|slug>`. Section guards in brackets.
+
+- `orders`:
+  - `GET /?scope=orders|verification|portal&view=…&search=` — list; guarded by the scope's section (`orders` / `verification` / `portal-actions`). The response says which tabs (`views`) that screen has.
+  - `GET /:id?scope=…` — detail, timeline and `capabilities` (`canEditVerification`, `canEditPortal`, `canEditFollowUp`, `reassignStep`)
+  - `PATCH /:id/verification` [verification] — scan outcome, call result, amounts, address, remarks. Response before scan → 400. A decision routes the order (`routing.ts`).
+  - `PATCH /:id/portal` [portal-actions] — portal action, remarks, `portalDone`
+  - `PATCH /:id/follow-up` [orders] — Soft Refused follow-up notes / done
+  - `POST /:id/reassign` [shifts] `{step, userId|null}`, `POST /bulk-reassign` [shifts] `{step, fromUserId|null, toUserId}`
+- `shifts` [shifts]: `GET /` (per step: shifts, eligible owners, unassigned count, pending per owner), `PUT /` `{step, shifts}` (must tile 24 h, max 5)
+- `sync`: `GET /health` — last successful Shopify run, last error, stale flag
+
+Order rules (in `access.ts`): `canEditShifts` — admin, the department head, or a team head holding `shifts`;
+`canReassignOrder` — admin / department head any order, team head only within their team;
+`canEditStep` — the step's owner, a shift editor, or an admin. A step owner must be active in the
+venture and able to open that step's section.
+
 ## Building a section
 
 1. Create it in `/dev` (venture → department → section). Section slugs are unique per venture, because the URL is `/{venture}/{section}`.
@@ -61,4 +80,10 @@ re-derives rules.
 npm run dev        # tsx watch
 npm test           # unit tests (no database)
 npm run test:e2e   # end-to-end access checks against a running API + real DB (creates and removes zz-e2e-* data)
+npm run shopify:fetch-one   # read-only: fetch the latest Shopify order and show how it maps
+npm run shopify:sync-once   # run one Shopify sync now (same code as the 5-minute schedule)
 ```
+
+Shopify env: `SHOPIFY_SHOP_DOMAIN`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`, `SHOPIFY_API_VERSION`
+(default `2026-01`), `SHOPIFY_VENTURE_SLUG` (default `wayveda`), `SHOPIFY_SYNC_ENABLED=true` to run
+the schedule, `SHOPIFY_BACKFILL_FROM` (ISO time; first run only, default last 24 h).

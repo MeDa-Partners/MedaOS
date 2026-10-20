@@ -23,6 +23,7 @@
  * Sections without a module show a "not built yet" screen to people who have access.
  */
 import type { ComponentType } from 'react';
+import dynamic from 'next/dynamic';
 
 export interface SectionModuleProps {
   venture: { id: string; name: string; slug: string };
@@ -33,7 +34,13 @@ export interface SectionModule {
   component: ComponentType<SectionModuleProps>;
 }
 
-export const SECTION_MODULES: Record<string, SectionModule> = {};
+export const SECTION_MODULES: Record<string, SectionModule> = {
+  // WayVeda COD verification (server: modules/orders, modules/shopify)
+  'wayveda/orders': { component: dynamic(() => import('./orders')) },
+  'wayveda/verification': { component: dynamic(() => import('./verification')) },
+  'wayveda/portal-actions': { component: dynamic(() => import('./portal-actions')) },
+  'wayveda/shifts': { component: dynamic(() => import('./shifts')) },
+};
 
 export function resolveSectionModule(ventureSlug: string, sectionSlug: string): SectionModule | null {
   return SECTION_MODULES[`${ventureSlug}/${sectionSlug}`] ?? SECTION_MODULES[sectionSlug] ?? null;

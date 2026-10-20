@@ -20,12 +20,6 @@ export default function RootPage() {
 
   return (
     <AppShell title="Welcome">
-      {/* TEMP: deployment test badge, remove after verifying the push */}
-      <div className="flex justify-end mb-3">
-        <span className="rounded-md border border-[#e4e4e7] bg-[#f4f4f5] px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-[#3f3f46]">
-          🚀 GitHub Push Test — v1.0
-        </span>
-      </div>
       <EmptyState
         icon={Building2}
         title="You’re not part of a venture yet"

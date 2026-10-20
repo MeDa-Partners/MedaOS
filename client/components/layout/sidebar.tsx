@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Check,
+  ChevronRight,
   ChevronsUpDown,
+  Folder,
   Home,
   KeyRound,
-  Layers,
   LogOut,
   Network,
   ShieldCheck,
@@ -142,10 +143,20 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Departments the user has folded away in the sidebar (all open by default).
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggleGroup = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const sectionGroups = useMemo(() => {
-    const groups = new Map<string, { name: string; sections: SectionRef[] }>();
+    const groups = new Map<string, { id: string; name: string; sections: SectionRef[] }>();
     for (const s of activeMembership?.sections ?? []) {
-      const g = groups.get(s.departmentId) ?? { name: s.departmentName, sections: [] };
+      const g = groups.get(s.departmentId) ?? { id: s.departmentId, name: s.departmentName, sections: [] };
       g.sections.push(s);
       groups.set(s.departmentId, g);
     }
@@ -154,7 +165,6 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
 
   const isLeaderHere = role === 'admin' || role === 'department_head' || role === 'team_head';
   const ventureHome = activeVenture ? `/${activeVenture.slug}` : '/';
-  const showDeptLabels = sectionGroups.length > 1;
 
   const content = (
     <div className="flex flex-col h-full">
@@ -180,29 +190,49 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
           <NavLink href={ventureHome} icon={Home} label="Home" active={pathname === ventureHome || pathname === '/'} onNavigate={onCloseMobile} />
         </div>
 
-        <GroupLabel>Sections</GroupLabel>
         {sectionGroups.length === 0 ? (
-          <p className="px-2.5 text-[11px] text-[#a1a1aa] leading-relaxed">
-            No sections yet. Your team or department head can give you access.
-          </p>
+          <>
+            <GroupLabel>Sections</GroupLabel>
+            <p className="px-2.5 text-[11px] text-[#a1a1aa] leading-relaxed">
+              No sections yet. Your team or department head can give you access.
+            </p>
+          </>
         ) : (
-          sectionGroups.map((group) => (
-            <div key={group.name} className="mb-1">
-              {showDeptLabels && (
-                <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-[#71717a] truncate">{group.name}</div>
-              )}
-              {group.sections.map((s) => (
-                <NavLink
-                  key={s.id}
-                  href={s.route}
-                  label={s.name}
-                  active={pathname === s.route}
-                  icon={showDeptLabels ? undefined : Layers}
-                  onNavigate={onCloseMobile}
-                />
-              ))}
-            </div>
-          ))
+          // One collapsible group per department, its sections nested below it.
+          <div className="pt-4 space-y-0.5">
+            {sectionGroups.map((group) => {
+              const open = !collapsed.has(group.id);
+              return (
+                <div key={group.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={open}
+                    className="group w-full flex items-center gap-2.5 h-8 px-2.5 rounded-lg text-[13px] text-[#52525b] hover:bg-[#f4f4f5]/70 hover:text-[#09090b] transition-colors cursor-pointer"
+                  >
+                    <Folder className="w-4 h-4 shrink-0 text-[#a1a1aa] group-hover:text-[#52525b]" />
+                    <span className="truncate flex-1 text-left">{group.name}</span>
+                    <ChevronRight
+                      className={`w-3.5 h-3.5 shrink-0 text-[#a1a1aa] transition-transform ${open ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+                  {open && (
+                    <div className="ml-[17px] pl-2 border-l border-[#e4e4e7] mt-0.5 space-y-0.5">
+                      {group.sections.map((s) => (
+                        <NavLink
+                          key={s.id}
+                          href={s.route}
+                          label={s.name}
+                          active={pathname === s.route}
+                          onNavigate={onCloseMobile}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {isLeaderHere && (

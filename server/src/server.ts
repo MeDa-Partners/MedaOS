@@ -4,6 +4,7 @@ import { sqlClient } from './db';
 
 import { bootstrapAdmin } from './db/bootstrap';
 import { upgradeSchema } from './db/upgrade';
+import { startShopifySyncSchedule } from './modules/shopify/scheduler';
 
 const server = app.listen(env.PORT, '0.0.0.0', async () => {
   console.log(`==============================================`);
@@ -19,6 +20,7 @@ const server = app.listen(env.PORT, '0.0.0.0', async () => {
     console.error('[Schema] Upgrade failed. The API may not work until it succeeds (run `npm run db:upgrade`).');
   }
   await bootstrapAdmin();
+  startShopifySyncSchedule();
 });
 
 // Graceful shutdown handling

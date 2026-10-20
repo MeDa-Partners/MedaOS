@@ -15,6 +15,9 @@ import {
   grantableSections,
   isLeader,
   membershipCapabilities,
+  canEditShifts,
+  canReassignOrder,
+  canEditStep,
 } from '../src/utils/access';
 
 // Org used throughout:
@@ -157,5 +160,52 @@ describe('account edits (name, status, password)', () => {
     expect(canEditAccount(teamHead, target, [northMember])).toBe(false);
     expect(canEditAccount(deptHead, { id: 'x', isAdmin: true }, [m('x')])).toBe(false);
     expect(canEditAccount(admin, { id: 'x', isAdmin: true }, [])).toBe(true);
+  });
+});
+
+describe('order work: shifts, reassignment, step editing', () => {
+  // The `shifts` section (SHIFTS) lives in SALES. The team head of NORTH holds S1, S2 — not SHIFTS.
+  const ctx = { departmentId: SALES, shiftsSectionId: 'SHIFTS' };
+  const teamHeadWithShifts = authority({ ...teamHead, heldSections: new Set(['S1', 'SHIFTS']) });
+  const memberWithShifts = authority({ userId: 'member', heldSections: new Set(['SHIFTS']) });
+  const opsHeadAuth = authority({ userId: 'opsHead', departmentsLed: new Set([OPS]) });
+
+  it('canEditShifts: admin and the owning department head; team heads only when holding shifts; members never', () => {
+    expect(canEditShifts(admin, ctx)).toBe(true);
+    expect(canEditShifts(deptHead, ctx)).toBe(true);
+    expect(canEditShifts(teamHead, ctx)).toBe(false);
+    expect(canEditShifts(teamHeadWithShifts, ctx)).toBe(true);
+    expect(canEditShifts(memberWithShifts, ctx)).toBe(false);
+    expect(canEditShifts(opsHeadAuth, ctx)).toBe(false);
+    expect(canEditShifts(deptHead, { departmentId: null, shiftsSectionId: null })).toBe(false);
+    expect(canEditShifts(admin, { departmentId: null, shiftsSectionId: null })).toBe(true);
+  });
+
+  it('canReassignOrder: admin and department head move any order in the department', () => {
+    expect(canReassignOrder(admin, ctx, northMember, southMember)).toBe(true);
+    expect(canReassignOrder(deptHead, ctx, northMember, southMember)).toBe(true);
+    expect(canReassignOrder(deptHead, ctx, null, noTeamMember)).toBe(true);
+    expect(canReassignOrder(deptHead, ctx, northMember, null)).toBe(true);
+  });
+
+  it('canReassignOrder: a team head holding shifts moves only within their own team', () => {
+    const otherNorth = m('erin', SALES, NORTH);
+    expect(canReassignOrder(teamHeadWithShifts, ctx, northMember, otherNorth)).toBe(true);
+    expect(canReassignOrder(teamHeadWithShifts, ctx, null, northMember)).toBe(true);
+    expect(canReassignOrder(teamHeadWithShifts, ctx, northMember, southMember)).toBe(false);
+    expect(canReassignOrder(teamHeadWithShifts, ctx, southMember, northMember)).toBe(false);
+    expect(canReassignOrder(teamHeadWithShifts, ctx, northMember, null)).toBe(false);
+    expect(canReassignOrder(teamHead, ctx, northMember, otherNorth)).toBe(false);
+    expect(canReassignOrder(memberWithShifts, ctx, null, northMember)).toBe(false);
+  });
+
+  it('canEditStep: the step owner, shift editors and admins', () => {
+    expect(canEditStep(member, ctx, 'member')).toBe(true);
+    expect(canEditStep(member, ctx, 'someone-else')).toBe(false);
+    expect(canEditStep(member, ctx, null)).toBe(false);
+    expect(canEditStep(deptHead, ctx, 'someone-else')).toBe(true);
+    expect(canEditStep(teamHeadWithShifts, ctx, null)).toBe(true);
+    expect(canEditStep(teamHead, ctx, 'someone-else')).toBe(false);
+    expect(canEditStep(admin, ctx, null)).toBe(true);
   });
 });

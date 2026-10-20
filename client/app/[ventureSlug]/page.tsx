@@ -98,11 +98,7 @@ export default function VentureHomePage({ params }: { params: Promise<{ ventureS
 
   return (
     <AppShell title={membership.venture.name} description="Workspace home">
-      <section className="relative rounded-2xl border border-[#e4e4e7] bg-white p-6 sm:p-7 shadow-2xs">
-        {/* TEMP: deployment test badge, remove after verifying the push */}
-        <span className="absolute top-3 right-3 sm:top-4 sm:right-4 rounded-md border border-[#e4e4e7] bg-[#f4f4f5] px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-[#3f3f46]">
-          🚀 GitHub Push Test — v1.0
-        </span>
+      <section className="rounded-2xl border border-[#e4e4e7] bg-white p-6 sm:p-7 shadow-2xs">
         <p className="text-xs text-[#71717a]">{greeting()},</p>
         <h2 className="text-2xl font-semibold tracking-tight text-[#09090b] mt-0.5">{firstName}</h2>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">

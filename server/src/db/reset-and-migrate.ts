@@ -1,5 +1,6 @@
 import { sqlClient } from './index';
 import { bootstrapAdmin } from './bootstrap';
+import { ORDERS_DDL } from './ddl/orders';
 
 export async function resetAndMigrate() {
   if (process.env.NODE_ENV === 'production') {
@@ -21,6 +22,13 @@ export async function resetAndMigrate() {
   // 1. Drop old and obsolete tables in dependency order
   console.log('1. Dropping obsolete tables...');
   await sqlClient.unsafe(`
+    DROP TABLE IF EXISTS "order_events" CASCADE;
+    DROP TABLE IF EXISTS "orders" CASCADE;
+    DROP TABLE IF EXISTS "sync_state" CASCADE;
+    DROP TABLE IF EXISTS "venture_integrations" CASCADE;
+    DROP TABLE IF EXISTS "user_availability" CASCADE;
+    DROP TABLE IF EXISTS "assignment_shifts" CASCADE;
+    DROP TABLE IF EXISTS "process_settings" CASCADE;
     DROP TABLE IF EXISTS "user_sections" CASCADE;
     DROP TABLE IF EXISTS "user_memberships" CASCADE;
     DROP TABLE IF EXISTS "user_ventures" CASCADE;
@@ -126,6 +134,7 @@ export async function resetAndMigrate() {
       "department_id" uuid NOT NULL REFERENCES "departments"("id") ON DELETE CASCADE,
       "name" varchar(100) NOT NULL,
       "slug" varchar(100) NOT NULL,
+      "description" text,
       "status" varchar(20) NOT NULL DEFAULT 'active',
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now()
@@ -166,6 +175,9 @@ export async function resetAndMigrate() {
     CREATE INDEX IF NOT EXISTS "user_sections_user_id_idx" ON "user_sections" ("user_id");
     CREATE INDEX IF NOT EXISTS "user_sections_section_id_idx" ON "user_sections" ("section_id");
   `);
+
+  // Orders, order events, sync state, integrations, availability, process settings
+  await sqlClient.unsafe(ORDERS_DDL);
 
   // 3. Bootstrap initial Global Administrator
   console.log('3. Bootstrapping initial Global Administrator...');

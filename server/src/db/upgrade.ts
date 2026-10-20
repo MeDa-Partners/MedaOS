@@ -1,4 +1,5 @@
 import { sqlClient } from './index';
+import { ORDERS_DDL } from './ddl/orders';
 
 /**
  * Idempotent, non-destructive schema upgrades for databases created by `reset-and-migrate.ts`.
@@ -18,6 +19,14 @@ const UPGRADE_STEPS: { name: string; sql: string }[] = [
         ADD CONSTRAINT "user_memberships_team_id_fkey"
         FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE SET NULL;
     `,
+  },
+  {
+    name: 'sections.description',
+    sql: `ALTER TABLE "sections" ADD COLUMN IF NOT EXISTS "description" text;`,
+  },
+  {
+    name: 'orders, order_events, sync_state, venture_integrations, assignment_shifts, process_settings',
+    sql: ORDERS_DDL,
   },
 ];
 

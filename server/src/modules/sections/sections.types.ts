@@ -8,6 +8,7 @@ export interface SectionDetail {
   ventureSlug?: string;
   name: string;
   slug: string;
+  description?: string | null;
   route: string;
   status: 'active' | 'inactive';
   userCount?: number;

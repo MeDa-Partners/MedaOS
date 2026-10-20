@@ -12,7 +12,9 @@
     "db:reset": "tsx src/db/reset-and-migrate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "tsx scripts/e2e-access.ts"
+    "test:e2e": "tsx scripts/e2e-access.ts",
+    "shopify:fetch-one": "tsx scripts/shopify-fetch-one.ts",
+    "shopify:sync-once": "tsx scripts/shopify-sync-once.ts"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +32,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
+    "node-cron": "^4.6.0",
     "postgres": "^3.4.9",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

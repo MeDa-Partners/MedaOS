@@ -18,7 +18,7 @@
  */
 import { and, eq, or } from 'drizzle-orm';
 import { db } from '../db';
-import { departments, sections, teams, userMemberships, userSections, ventures } from '../db/schema';
+import { departments, sections, teams, userMemberships, userSections, users, ventures } from '../db/schema';
 
 export interface Actor {
   id: string;
@@ -284,4 +284,89 @@ export async function resolveSectionAccess(
   }
 
   return { allowed: true, section };
+}
+
+// ───────────── Order work: shifts, reassignment, step editing (WayVeda COD verification) ─────────────
+
+/** The department that owns the `shifts` section and that section's id (null if it isn't set up). */
+export interface ShiftsContext {
+  departmentId: string | null;
+  shiftsSectionId: string | null;
+}
+
+/**
+ * Edit shifts and reassign orders. Admin and the owning department's head always; a team head of
+ * that department only if they hold the `shifts` section. Members never.
+ */
+export function canEditShifts(auth: Authority, ctx: ShiftsContext): boolean {
+  if (auth.isAdmin) return true;
+  if (!ctx.departmentId) return false;
+  if (auth.departmentsLed.has(ctx.departmentId)) return true;
+  const leadsTeamHere = [...auth.teamsLed.values()].includes(ctx.departmentId);
+  return leadsTeamHere && !!ctx.shiftsSectionId && auth.heldSections.has(ctx.shiftsSectionId);
+}
+
+/**
+ * Move an order's step from one owner to another (`null` = unassigned).
+ * Admin and department head: any order in the department. A team head who may edit shifts: only
+ * between members of a team they lead (an unassigned order may be given to their team).
+ * That the new owner holds the step's section is checked separately (assertCanOwnStep).
+ */
+export function canReassignOrder(
+  auth: Authority,
+  ctx: ShiftsContext,
+  from: MembershipRef | null,
+  to: MembershipRef | null
+): boolean {
+  if (!canEditShifts(auth, ctx)) return false;
+  if (auth.isAdmin || (ctx.departmentId && auth.departmentsLed.has(ctx.departmentId))) return true;
+  const fromOk = from === null || leadsTeam(auth, from.teamId);
+  return fromOk && to !== null && leadsTeam(auth, to.teamId);
+}
+
+/** Edit a step's fields: the step's owner, anyone who may edit shifts, or an admin. */
+export function canEditStep(auth: Authority, ctx: ShiftsContext, stepOwnerId: string | null): boolean {
+  return auth.isAdmin || (!!stepOwnerId && stepOwnerId === auth.userId) || canEditShifts(auth, ctx);
+}
+
+/** Where a section lives in a venture (id + department), or null if it doesn't exist there. */
+export async function loadSectionRef(ventureId: string, slug: string) {
+  const [row] = await db
+    .select({ id: sections.id, departmentId: sections.departmentId })
+    .from(sections)
+    .innerJoin(departments, eq(sections.departmentId, departments.id))
+    .where(and(eq(departments.ventureId, ventureId), eq(sections.slug, slug)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Active people in the venture who can open a section: members of its department who head it or
+ * hold a grant. (Admins open everything but are not venture members, so they are not listed.)
+ */
+export async function listSectionHolders(ventureId: string, slug: string) {
+  const ref = await loadSectionRef(ventureId, slug);
+  if (!ref) return [];
+  const rows = await db
+    .select({
+      userId: userMemberships.userId,
+      teamId: userMemberships.teamId,
+      departmentId: userMemberships.departmentId,
+      name: users.name,
+      status: users.status,
+      headUserId: departments.headUserId,
+      grantId: userSections.id,
+    })
+    .from(userMemberships)
+    .innerJoin(users, eq(users.id, userMemberships.userId))
+    .innerJoin(departments, eq(departments.id, userMemberships.departmentId))
+    .leftJoin(userSections, and(eq(userSections.userId, userMemberships.userId), eq(userSections.sectionId, ref.id)))
+    .where(and(eq(userMemberships.ventureId, ventureId), eq(userMemberships.departmentId, ref.departmentId)));
+  return rows
+    .filter((r) => r.status === 'active' && (r.grantId || r.headUserId === r.userId))
+    .map((r) => ({
+      userId: r.userId,
+      name: r.name,
+      membership: { userId: r.userId, ventureId, departmentId: r.departmentId, teamId: r.teamId } as MembershipRef,
+    }));
 }

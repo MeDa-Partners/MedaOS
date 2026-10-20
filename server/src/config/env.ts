@@ -56,6 +56,21 @@ const envSchema = z.object({
     .string()
     .default('24')
     .transform((val) => parseInt(val, 10)),
+  // Shopify (WayVeda order sync). Optional so the API still boots without them; the sync
+  // refuses to run until all three are set.
+  SHOPIFY_SHOP_DOMAIN: z.string().optional(),
+  SHOPIFY_CLIENT_ID: z.string().optional(),
+  SHOPIFY_CLIENT_SECRET: z.string().optional(),
+  SHOPIFY_API_VERSION: z.string().default('2026-01'),
+  /** The venture that receives the orders (single-venture setup until venture_integrations is used). */
+  SHOPIFY_VENTURE_SLUG: z.string().default('wayveda'),
+  /** Turns on the 5-minute sync inside this server process. Off unless set to "true". */
+  SHOPIFY_SYNC_ENABLED: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
+  /** First run only (no cursor yet): import orders created on or after this. Default: last 24 hours. */
+  SHOPIFY_BACKFILL_FROM: z.string().datetime({ offset: true }).optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

@@ -166,6 +166,7 @@ export interface DevSection {
   departmentId: string;
   name: string;
   slug: string;
+  description: string | null;
   status: Status;
   route: string;
   assignedUserCount: number;
@@ -197,6 +198,155 @@ export interface DevVenture {
 export interface DevCatalog {
   ventures: DevVenture[];
   summary: { totalVentures: number; totalDepartments: number; totalTeams: number; totalSections: number };
+}
+
+// ── Orders (WayVeda COD verification) ──
+
+export type OrderView = 'all' | 'my_pending' | 'delayed' | 'converted' | 'cancelled' | 'follow_up' | 'completed';
+/** Which screen is asking: each is guarded by its own section on the server. */
+export type OrderScope = 'orders' | 'verification' | 'portal';
+export type OrderStep = 'verification' | 'portal';
+export type OrderStage = 'new' | 'verification_pending' | 'portal_pending' | 'done' | 'closed';
+/** overdue = open and past its deadline (amber); late = finished after its deadline (red). */
+export type DelayStatus = 'overdue' | 'late' | null;
+
+export interface OrderListItem {
+  id: string;
+  taskId: string | null;
+  orderNumber: string;
+  orderDate: string;
+  customerName: string | null;
+  phone: string | null;
+  products: string | null;
+  totalAmount: number;
+  stage: OrderStage;
+  assigneeName: string | null;
+  /** Minutes past the planned time of an open step; null when on time or no TAT is set. */
+  delayMinutes: number | null;
+  /** Planned time of the step the order is waiting on. */
+  plannedAt: string | null;
+  delayStatus: DelayStatus;
+  followUpRequired: boolean;
+  followUpDone: boolean;
+}
+
+export interface OrderListResult {
+  orders: OrderListItem[];
+  /** The tabs this screen shows, in order. */
+  views: OrderView[];
+  counts: Partial<Record<OrderView, number>>;
+}
+
+export interface OrderTimelineEntry {
+  id: string;
+  step: string;
+  event: string;
+  at: string;
+  note: string | null;
+  byUserName: string | null;
+}
+
+export interface OrderDetail {
+  id: string;
+  taskId: string | null;
+  shopifyOrderId: string;
+  orderNumber: string;
+  orderDate: string;
+  customerName: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  products: string | null;
+  totalQty: number;
+  totalAmount: number;
+  paymentMethod: string;
+  channel: string | null;
+  financialStatus: string | null;
+  fulfillmentStatus: string | null;
+  cancelledInShopify: boolean;
+  stage: OrderStage;
+  scanOutcome: string | null;
+  scanAt: string | null;
+  finalResponse: string | null;
+  collectedAmount: number | null;
+  balanceAmount: number | null;
+  addressConfirmed: boolean | null;
+  newAddress: string | null;
+  screenshotUrl: string | null;
+  crmRemarks: string | null;
+  portalAction: string | null;
+  portalDone: boolean;
+  adminRemarks: string | null;
+  followUpRequired: boolean;
+  followUpDone: boolean;
+  followUpNotes: string | null;
+  verificationAssignee: { id: string; name: string } | null;
+  verificationPlannedAt: string | null;
+  verificationActualAt: string | null;
+  portalAssignee: { id: string; name: string } | null;
+  portalPlannedAt: string | null;
+  portalActualAt: string | null;
+  delayMinutes: number | null;
+  delayStatus: DelayStatus;
+  createdAt: string;
+  updatedAt: string;
+  timeline: OrderTimelineEntry[];
+  capabilities: OrderCapabilities;
+}
+
+/** What the current user may do with one order (from the server; never re-derived here). */
+export interface OrderCapabilities {
+  canEditVerification: boolean;
+  canEditPortal: boolean;
+  canEditFollowUp: boolean;
+  /** The step that may be reassigned, or null. */
+  reassignStep: OrderStep | null;
+}
+
+export interface VerificationUpdate {
+  scanOutcome?: string;
+  finalResponse?: string;
+  collectedAmount?: number | null;
+  balanceAmount?: number | null;
+  addressConfirmed?: boolean | null;
+  newAddress?: string | null;
+  crmRemarks?: string | null;
+}
+
+export interface ShiftRow {
+  id?: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  assigneeUserId: string | null;
+  assigneeName?: string | null;
+}
+
+export interface StepShifts {
+  shifts: ShiftRow[];
+  candidates: { userId: string; name: string }[];
+  unassigned: number;
+  pendingByOwner: { userId: string; name: string; pending: number }[];
+  problems: string[];
+}
+
+export interface ShiftsOverview {
+  steps: Record<OrderStep, StepShifts>;
+  capabilities: { canEditShifts: boolean };
+}
+
+export interface SyncHealth {
+  provider: 'shopify';
+  configured: boolean;
+  scheduleEnabled: boolean;
+  lastSuccessAt: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+  ordersSynced: number;
+  /** No successful run in the last 15 minutes. */
+  stale: boolean;
 }
 
 // ───────────────────────── Transport ─────────────────────────
@@ -335,6 +485,35 @@ export const api = {
       request<Employee>(`/users/${id}/sections/${sectionId}`, send('DELETE')),
   },
 
+  orders: {
+    list: (
+      ventureId: string,
+      params: { scope?: OrderScope; view?: OrderView; search?: string; limit?: number; offset?: number } = {}
+    ) => request<OrderListResult>(`/orders${qs({ ventureId, ...params })}`),
+    get: (ventureId: string, id: string, scope: OrderScope = 'orders') =>
+      request<OrderDetail>(`/orders/${id}${qs({ ventureId, scope })}`),
+    updateVerification: (ventureId: string, id: string, data: VerificationUpdate) =>
+      request<OrderDetail>(`/orders/${id}/verification${qs({ ventureId, scope: 'verification' })}`, send('PATCH', data)),
+    updatePortal: (ventureId: string, id: string, data: { portalAction?: string; portalDone?: boolean; adminRemarks?: string | null }) =>
+      request<OrderDetail>(`/orders/${id}/portal${qs({ ventureId, scope: 'portal' })}`, send('PATCH', data)),
+    updateFollowUp: (ventureId: string, id: string, data: { followUpDone?: boolean; followUpNotes?: string | null }) =>
+      request<OrderDetail>(`/orders/${id}/follow-up${qs({ ventureId })}`, send('PATCH', data)),
+    reassign: (ventureId: string, id: string, step: OrderStep, userId: string | null) =>
+      request<OrderDetail>(`/orders/${id}/reassign${qs({ ventureId })}`, send('POST', { step, userId })),
+    bulkReassign: (ventureId: string, step: OrderStep, fromUserId: string | null, toUserId: string) =>
+      request<{ moved: number }>(`/orders/bulk-reassign${qs({ ventureId })}`, send('POST', { step, fromUserId, toUserId })),
+  },
+
+  shifts: {
+    get: (ventureId: string) => request<ShiftsOverview>(`/shifts${qs({ ventureId })}`),
+    save: (ventureId: string, step: OrderStep, shifts: Omit<ShiftRow, 'id' | 'assigneeName'>[]) =>
+      request<ShiftsOverview>(`/shifts${qs({ ventureId })}`, send('PUT', { step, shifts })),
+  },
+
+  sync: {
+    health: (ventureId: string) => request<SyncHealth>(`/sync/health${qs({ ventureId })}`),
+  },
+
   dev: {
     login: (username: string, password: string) =>
       request<{ username: string }>('/dev/auth/login', send('POST', { username, password })),
@@ -356,9 +535,9 @@ export const api = {
         request<null>(`/dev/departments/${id}${qs({ force: force || undefined })}`, send('DELETE')),
     },
     sections: {
-      create: (data: { departmentId: string; name: string; slug?: string; status?: Status }) =>
+      create: (data: { departmentId: string; name: string; slug?: string; description?: string | null; status?: Status }) =>
         request<Section>('/dev/sections', send('POST', data)),
-      update: (id: string, data: { name?: string; slug?: string; status?: Status }) =>
+      update: (id: string, data: { name?: string; slug?: string; description?: string | null; status?: Status }) =>
         request<Section>(`/dev/sections/${id}`, send('PATCH', data)),
       remove: (id: string, force = false) => request<null>(`/dev/sections/${id}${qs({ force: force || undefined })}`, send('DELETE')),
     },

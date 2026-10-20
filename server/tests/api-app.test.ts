@@ -48,4 +48,28 @@ describe('Express API Integration Tests', () => {
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toBe('Authentication required');
   });
+
+  it.each(['/api/v1/orders?ventureId=wayveda', '/api/v1/orders/00000000-0000-0000-0000-000000000000?ventureId=wayveda', '/api/v1/sync/health?ventureId=wayveda', '/api/v1/shifts?ventureId=wayveda'])(
+    'GET %s without session cookie should return 401 Unauthorized',
+    async (path) => {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(401);
+      expect(res.body.error.message).toBe('Authentication required');
+    }
+  );
+});
+
+describe('order work routes require a session', () => {
+  const id = '00000000-0000-0000-0000-000000000000';
+  it.each([
+    ['patch', `/api/v1/orders/${id}/verification?ventureId=wayveda`],
+    ['patch', `/api/v1/orders/${id}/portal?ventureId=wayveda`],
+    ['patch', `/api/v1/orders/${id}/follow-up?ventureId=wayveda`],
+    ['post', `/api/v1/orders/${id}/reassign?ventureId=wayveda`],
+    ['post', '/api/v1/orders/bulk-reassign?ventureId=wayveda'],
+    ['put', '/api/v1/shifts?ventureId=wayveda'],
+  ] as const)('%s %s → 401', async (method, path) => {
+    const res = await request(app)[method](path).send({});
+    expect(res.status).toBe(401);
+  });
 });

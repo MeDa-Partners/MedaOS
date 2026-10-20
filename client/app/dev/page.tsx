@@ -34,6 +34,8 @@ interface EditTarget {
   parentId?: string;
   name: string;
   slug: string;
+  /** Sections only. */
+  description?: string;
   status: Status;
 }
 
@@ -107,6 +109,7 @@ function EntityDialog({
   const [name, setName] = useState(target.name);
   const [slug, setSlug] = useState(target.slug);
   const [slugTouched, setSlugTouched] = useState(!!target.id);
+  const [description, setDescription] = useState(target.description ?? '');
   const [active, setActive] = useState(target.status === 'active');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,8 +128,9 @@ function EntityDialog({
         if (isNew) await api.dev.departments.create({ ...data, ventureId: target.parentId! });
         else await api.dev.departments.update(target.id!, data);
       } else {
-        if (isNew) await api.dev.sections.create({ ...data, departmentId: target.parentId! });
-        else await api.dev.sections.update(target.id!, data);
+        const sectionData = { ...data, description: description.trim() || null };
+        if (isNew) await api.dev.sections.create({ ...sectionData, departmentId: target.parentId! });
+        else await api.dev.sections.update(target.id!, sectionData);
       }
       onSaved();
     } catch (err) {
@@ -186,6 +190,11 @@ function EntityDialog({
             }}
           />
         </Field>
+        {target.kind === 'section' && (
+          <Field label="Description" hint="One line on what this section is for. Optional.">
+            <Input value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+        )}
         <Checkbox
           checked={active}
           onChange={setActive}
@@ -302,7 +311,9 @@ function DepartmentCard({
               key={s.id}
               venture={venture}
               section={s}
-              onEdit={() => onEdit({ kind: 'section', id: s.id, name: s.name, slug: s.slug, status: s.status })}
+              onEdit={() =>
+                onEdit({ kind: 'section', id: s.id, name: s.name, slug: s.slug, description: s.description ?? '', status: s.status })
+              }
               onDelete={() => onDelete('section', s.id, s.name)}
             />
           ))}

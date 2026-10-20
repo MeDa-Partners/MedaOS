@@ -7,6 +7,8 @@ import { users } from './users';
 import { userMemberships } from './user-memberships';
 import { userSections } from './user-sections';
 import { sessions } from './sessions';
+import { orders } from './orders';
+import { orderEvents } from './order-events';
 
 export const venturesRelations = relations(ventures, ({ many }) => ({
   departments: many(departments),
@@ -89,5 +91,20 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
     fields: [sessions.userId],
     references: [users.id],
+  }),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  venture: one(ventures, {
+    fields: [orders.ventureId],
+    references: [ventures.id],
+  }),
+  events: many(orderEvents),
+}));
+
+export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderEvents.orderId],
+    references: [orders.id],
   }),
 }));
